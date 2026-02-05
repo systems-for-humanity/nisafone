@@ -24,24 +24,34 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -78,6 +88,14 @@ fun RecordingScreen(
         }
     }
 
+    // Add prefix dialog
+    if (uiState.showAddPrefixDialog) {
+        AddPrefixDialog(
+            onDismiss = viewModel::hideAddPrefixDialog,
+            onConfirm = viewModel::addTitlePrefix
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
@@ -96,6 +114,18 @@ fun RecordingScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // Title prefix selector
+            TitlePrefixSelector(
+                prefixes = uiState.titlePrefixes,
+                selectedPrefix = uiState.selectedTitlePrefix,
+                onPrefixSelected = viewModel::selectTitlePrefix,
+                onAddNewPrefix = viewModel::showAddPrefixDialog,
+                enabled = !uiState.isRecording,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Timer display
             TimerDisplay(
                 formattedTime = uiState.formattedTime,
@@ -391,4 +421,101 @@ private fun ActionButtons(
             }
         }
     }
+}
+
+@Composable
+private fun TitlePrefixSelector(
+    prefixes: List<String>,
+    selectedPrefix: String,
+    onPrefixSelected: (String) -> Unit,
+    onAddNewPrefix: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { if (enabled) expanded = true },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = selectedPrefix,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = Icons.Default.ArrowDropDown,
+                contentDescription = "Select title prefix"
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            prefixes.forEach { prefix ->
+                DropdownMenuItem(
+                    text = { Text(prefix) },
+                    onClick = {
+                        onPrefixSelected(prefix)
+                        expanded = false
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add new...")
+                    }
+                },
+                onClick = {
+                    expanded = false
+                    onAddNewPrefix()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddPrefixDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Title Prefix") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text("Prefix") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(text) },
+                enabled = text.isNotBlank()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

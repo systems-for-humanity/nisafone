@@ -43,7 +43,8 @@ val commonModule = module {
             audioRecorder = get(),
             transcriptionService = get(),
             shareService = get(),
-            saveRecordingUseCase = get()
+            saveRecordingUseCase = get(),
+            titlePrefixRepository = get()
         )
     }
 

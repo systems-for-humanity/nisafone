@@ -32,7 +32,10 @@ data class RecordingUiState(
     val utterances: List<Utterance> = emptyList(),
     val elapsedTimeMs: Long = 0,
     val isSharing: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val titlePrefixes: List<String> = listOf("Recording"),
+    val selectedTitlePrefix: String = "Recording",
+    val showAddPrefixDialog: Boolean = false
 ) {
     // Recording state considers both audio recorder and transcription service
     // (some transcription services handle audio internally)
@@ -61,7 +64,8 @@ class RecordingViewModel(
     private val audioRecorder: AudioRecorder,
     private val transcriptionService: TranscriptionService,
     private val shareService: ShareService,
-    private val saveRecordingUseCase: SaveRecordingUseCase
+    private val saveRecordingUseCase: SaveRecordingUseCase,
+    private val titlePrefixRepository: TitlePrefixRepository
 ) : ViewModel() {
 
     private val logger = Logger.withTag("RecordingViewModel")
@@ -80,6 +84,7 @@ class RecordingViewModel(
         observeTranscriptionState()
         observeTranscriptionEvents()
         observeLanguage()
+        observeTitlePrefixes()
     }
 
     private fun observeAudioState() {
@@ -111,6 +116,19 @@ class RecordingViewModel(
         viewModelScope.launch {
             transcriptionService.currentLanguage.collect { language ->
                 _uiState.update { it.copy(currentLanguage = language) }
+            }
+        }
+    }
+
+    private fun observeTitlePrefixes() {
+        viewModelScope.launch {
+            titlePrefixRepository.prefixes.collect { prefixes ->
+                _uiState.update { it.copy(titlePrefixes = prefixes) }
+            }
+        }
+        viewModelScope.launch {
+            titlePrefixRepository.selectedPrefix.collect { prefix ->
+                _uiState.update { it.copy(selectedTitlePrefix = prefix) }
             }
         }
     }
@@ -251,7 +269,7 @@ class RecordingViewModel(
     private suspend fun saveRecording(transcription: TranscriptionResult) {
         val recording = Recording(
             id = transcription.id,
-            title = "",
+            title = _uiState.value.selectedTitlePrefix,
             transcription = transcription,
             audioFilePath = null,
             createdAt = transcription.createdAt,
@@ -291,6 +309,23 @@ class RecordingViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun selectTitlePrefix(prefix: String) {
+        titlePrefixRepository.selectPrefix(prefix)
+    }
+
+    fun addTitlePrefix(prefix: String) {
+        titlePrefixRepository.addPrefix(prefix)
+        _uiState.update { it.copy(showAddPrefixDialog = false) }
+    }
+
+    fun showAddPrefixDialog() {
+        _uiState.update { it.copy(showAddPrefixDialog = true) }
+    }
+
+    fun hideAddPrefixDialog() {
+        _uiState.update { it.copy(showAddPrefixDialog = false) }
     }
 
     fun setLanguage(language: SpeechLanguage) {

@@ -214,7 +214,9 @@ class SherpaOnnxTranscriptionService(
 
             _state.value = TranscriptionState.INITIALIZING
             try {
-                initializeWithModel(modelForLanguage)
+                withContext(Dispatchers.IO) {
+                    initializeWithModel(modelForLanguage)
+                }
                 _state.value = TranscriptionState.READY
                 _events.emit(TranscriptionEvent.Error("Switched to ${modelForLanguage.displayName}"))
             } catch (e: Exception) {
@@ -242,7 +244,9 @@ class SherpaOnnxTranscriptionService(
 
             _state.value = TranscriptionState.INITIALIZING
             try {
-                initializeWithModel(model)
+                withContext(Dispatchers.IO) {
+                    initializeWithModel(model)
+                }
                 _state.value = TranscriptionState.READY
                 _events.emit(TranscriptionEvent.Error("Language hint set to ${hint.displayName}"))
             } catch (e: Exception) {
