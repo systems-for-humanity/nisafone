@@ -1,5 +1,6 @@
 package app.s4h.fomovoi.app.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -49,6 +50,11 @@ fun AppNavigation(
     var selectedRecording by remember { mutableStateOf<Recording?>(null) }
     val shareService: ShareService = koinInject()
     val scope = rememberCoroutineScope()
+
+    // Handle back button - go back to Recording screen from History/Settings
+    BackHandler(enabled = currentScreen != Screen.Recording) {
+        currentScreen = Screen.Recording
+    }
 
     // Show detail screen if a recording is selected
     if (selectedRecording != null) {
