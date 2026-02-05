@@ -27,11 +27,14 @@ import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.UUID
 
 /**
  * Transcription service using Sherpa-ONNX for continuous, on-device speech recognition.
  * Uses streaming Zipformer transducer model for real-time transcription.
+ * Models are downloaded on first use (~122MB total).
  */
 fun createSherpaOnnxTranscriptionService(context: Context): TranscriptionService {
     return SherpaOnnxTranscriptionService(context)
@@ -43,16 +46,19 @@ class SherpaOnnxTranscriptionService(
 
     companion object {
         private const val TAG = "SherpaOnnxTranscription"
-        private const val MODEL_DIR = "sherpa-onnx"
-        private const val ASSETS_DIR = "sherpa-onnx"
+        private const val MODEL_DIR = "sherpa-onnx-models"
+        private const val MODEL_BASE_URL = "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-02-21/resolve/main"
 
-        // Model files (int8 quantized for smaller size)
+        // Model files with expected sizes for verification
+        // Using non-quantized models for better accuracy (~296MB total)
         private val MODEL_FILES = listOf(
-            "encoder-epoch-99-avg-1.int8.onnx",
-            "decoder-epoch-99-avg-1.int8.onnx",
-            "joiner-epoch-99-avg-1.int8.onnx",
-            "tokens.txt"
+            ModelFile("encoder-epoch-99-avg-1.onnx", 292_543_537L),
+            ModelFile("decoder-epoch-99-avg-1.onnx", 2_093_080L),
+            ModelFile("joiner-epoch-99-avg-1.onnx", 1_026_462L),
+            ModelFile("tokens.txt", 5_048L)
         )
+
+        private data class ModelFile(val name: String, val expectedSize: Long)
     }
 
     private val logger = Logger.withTag("SherpaOnnxTranscriptionService")
@@ -84,11 +90,12 @@ class SherpaOnnxTranscriptionService(
         _state.value = TranscriptionState.INITIALIZING
 
         try {
-            // Copy models from assets to internal storage if needed
             val modelDir = File(context.filesDir, MODEL_DIR)
+
+            // Check if models need to be downloaded
             if (!areModelsReady(modelDir)) {
-                Log.d(TAG, "Copying models from assets...")
-                copyModelsFromAssets(modelDir)
+                Log.d(TAG, "Models not found or incomplete, downloading...")
+                downloadModels(modelDir)
             }
 
             // Initialize recognizer
@@ -114,37 +121,95 @@ class SherpaOnnxTranscriptionService(
 
     private fun areModelsReady(modelDir: File): Boolean {
         if (!modelDir.exists()) return false
-        return MODEL_FILES.all { File(modelDir, it).exists() }
+        return MODEL_FILES.all { modelFile ->
+            val file = File(modelDir, modelFile.name)
+            file.exists() && file.length() == modelFile.expectedSize
+        }
     }
 
-    private suspend fun copyModelsFromAssets(modelDir: File) = withContext(Dispatchers.IO) {
+    private suspend fun downloadModels(modelDir: File) = withContext(Dispatchers.IO) {
         modelDir.mkdirs()
 
-        MODEL_FILES.forEach { fileName ->
-            val file = File(modelDir, fileName)
+        // Clean up any partial downloads
+        MODEL_FILES.forEach { modelFile ->
+            val file = File(modelDir, modelFile.name)
+            if (file.exists() && file.length() != modelFile.expectedSize) {
+                Log.d(TAG, "Removing incomplete file: ${modelFile.name}")
+                file.delete()
+            }
+        }
+
+        val totalSize = MODEL_FILES.sumOf { it.expectedSize }
+        var downloadedSize = 0L
+
+        MODEL_FILES.forEach { modelFile ->
+            val file = File(modelDir, modelFile.name)
             if (!file.exists()) {
-                Log.d(TAG, "Copying $fileName from assets...")
-                try {
-                    context.assets.open("$ASSETS_DIR/$fileName").use { input ->
-                        FileOutputStream(file).use { output ->
-                            input.copyTo(output)
-                        }
+                Log.d(TAG, "Downloading ${modelFile.name}...")
+                val progressPercent = (downloadedSize * 100 / totalSize).toInt()
+                scope.launch {
+                    _events.emit(TranscriptionEvent.Error("Downloading speech model: $progressPercent% (${modelFile.name})"))
+                }
+
+                downloadFile(
+                    url = "$MODEL_BASE_URL/${modelFile.name}",
+                    destination = file,
+                    expectedSize = modelFile.expectedSize
+                )
+
+                Log.d(TAG, "Downloaded ${modelFile.name}")
+            }
+            downloadedSize += modelFile.expectedSize
+        }
+
+        scope.launch {
+            _events.emit(TranscriptionEvent.Error("Speech model ready"))
+        }
+    }
+
+    private fun downloadFile(url: String, destination: File, expectedSize: Long) {
+        val tempFile = File(destination.parent, "${destination.name}.tmp")
+
+        try {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 60_000
+            connection.setRequestProperty("User-Agent", "Fomovoi-Android")
+
+            connection.inputStream.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var totalBytesRead = 0L
+
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalBytesRead += bytesRead
                     }
-                    Log.d(TAG, "Copied $fileName")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to copy $fileName from assets: ${e.message}")
-                    throw Exception("Failed to copy $fileName from assets", e)
+
+                    if (totalBytesRead != expectedSize) {
+                        throw Exception("Download incomplete: got $totalBytesRead bytes, expected $expectedSize")
+                    }
                 }
             }
+
+            // Rename temp file to final destination
+            if (!tempFile.renameTo(destination)) {
+                throw Exception("Failed to rename temp file")
+            }
+
+        } catch (e: Exception) {
+            tempFile.delete()
+            throw Exception("Failed to download from $url: ${e.message}", e)
         }
     }
 
     private fun createRecognizerConfig(modelDir: File): OnlineRecognizerConfig {
         val modelConfig = OnlineModelConfig(
             transducer = OnlineTransducerModelConfig(
-                encoder = File(modelDir, "encoder-epoch-99-avg-1.int8.onnx").absolutePath,
-                decoder = File(modelDir, "decoder-epoch-99-avg-1.int8.onnx").absolutePath,
-                joiner = File(modelDir, "joiner-epoch-99-avg-1.int8.onnx").absolutePath
+                encoder = File(modelDir, "encoder-epoch-99-avg-1.onnx").absolutePath,
+                decoder = File(modelDir, "decoder-epoch-99-avg-1.onnx").absolutePath,
+                joiner = File(modelDir, "joiner-epoch-99-avg-1.onnx").absolutePath
             ),
             tokens = File(modelDir, "tokens.txt").absolutePath,
             numThreads = 2,
