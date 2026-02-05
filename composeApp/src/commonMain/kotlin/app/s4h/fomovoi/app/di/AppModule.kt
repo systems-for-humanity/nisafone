@@ -9,6 +9,7 @@ import app.s4h.fomovoi.core.domain.usecase.GetRecordingByIdUseCase
 import app.s4h.fomovoi.core.domain.usecase.RecordingRepository
 import app.s4h.fomovoi.core.domain.usecase.SaveRecordingUseCase
 import app.s4h.fomovoi.core.domain.usecase.ToggleFavoriteUseCase
+import app.s4h.fomovoi.core.domain.usecase.UpdateRecordingUseCase
 import app.s4h.fomovoi.feature.history.HistoryViewModel
 import app.s4h.fomovoi.feature.recording.RecordingViewModel
 import kotlinx.serialization.json.Json
@@ -34,6 +35,7 @@ val commonModule = module {
     factory { GetAllRecordingsUseCase(get()) }
     factory { GetRecordingByIdUseCase(get()) }
     factory { SaveRecordingUseCase(get()) }
+    factory { UpdateRecordingUseCase(get()) }
     factory { DeleteRecordingUseCase(get()) }
     factory { ToggleFavoriteUseCase(get()) }
 
@@ -44,6 +46,7 @@ val commonModule = module {
             transcriptionService = get(),
             shareService = get(),
             saveRecordingUseCase = get(),
+            updateRecordingUseCase = get(),
             titlePrefixRepository = get()
         )
     }

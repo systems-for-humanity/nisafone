@@ -44,6 +44,14 @@ class DeleteRecordingUseCase(
     }
 }
 
+class UpdateRecordingUseCase(
+    private val repository: RecordingRepository
+) {
+    suspend operator fun invoke(recording: Recording) {
+        repository.updateRecording(recording)
+    }
+}
+
 class ToggleFavoriteUseCase(
     private val repository: RecordingRepository
 ) {

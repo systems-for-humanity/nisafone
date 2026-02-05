@@ -7,6 +7,7 @@ import app.s4h.fomovoi.core.audio.AudioRecorder
 import app.s4h.fomovoi.core.audio.RecordingState
 import app.s4h.fomovoi.core.domain.model.Recording
 import app.s4h.fomovoi.core.domain.usecase.SaveRecordingUseCase
+import app.s4h.fomovoi.core.domain.usecase.UpdateRecordingUseCase
 import app.s4h.fomovoi.core.sharing.ShareService
 import app.s4h.fomovoi.core.transcription.Speaker
 import app.s4h.fomovoi.core.transcription.SpeechLanguage
@@ -21,6 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 data class RecordingUiState(
     val recordingState: RecordingState = RecordingState.IDLE,
@@ -65,6 +68,7 @@ class RecordingViewModel(
     private val transcriptionService: TranscriptionService,
     private val shareService: ShareService,
     private val saveRecordingUseCase: SaveRecordingUseCase,
+    private val updateRecordingUseCase: UpdateRecordingUseCase,
     private val titlePrefixRepository: TitlePrefixRepository
 ) : ViewModel() {
 
@@ -76,6 +80,7 @@ class RecordingViewModel(
     private var startTimeMs: Long = 0
     private val collectedUtterances = mutableListOf<Utterance>()
     private var isInitialized = false
+    private var currentRecordingId: String? = null
 
     private var audioStreamJob: kotlinx.coroutines.Job? = null
 
@@ -139,6 +144,8 @@ class RecordingViewModel(
                 when (event) {
                     is TranscriptionEvent.PartialResult -> {
                         _uiState.update { it.copy(partialText = event.text) }
+                        // Save partial transcription to database
+                        saveCurrentTranscription()
                     }
                     is TranscriptionEvent.FinalResult -> {
                         collectedUtterances.add(event.utterance)
@@ -148,6 +155,8 @@ class RecordingViewModel(
                                 partialText = ""
                             )
                         }
+                        // Save with final utterance
+                        saveCurrentTranscription()
                     }
                     is TranscriptionEvent.SpeakerChange -> {
                         _uiState.update { it.copy(currentSpeaker = event.newSpeaker) }
@@ -158,6 +167,56 @@ class RecordingViewModel(
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun saveCurrentTranscription() {
+        val recordingId = currentRecordingId ?: return
+        val state = _uiState.value
+
+        // Build current transcription from utterances and partial text
+        val allUtterances = collectedUtterances.toMutableList()
+        if (state.partialText.isNotBlank()) {
+            val speaker = state.currentSpeaker ?: Speaker(id = "speaker_1", label = "Speaker 1")
+            allUtterances.add(
+                Utterance(
+                    id = "partial",
+                    text = state.partialText,
+                    speaker = speaker,
+                    startTimeMs = 0,
+                    endTimeMs = state.elapsedTimeMs
+                )
+            )
+        }
+
+        if (allUtterances.isEmpty()) return
+
+        val now = Clock.System.now()
+        val fullText = allUtterances.joinToString(" ") { it.text }
+
+        val transcription = TranscriptionResult(
+            id = recordingId,
+            utterances = allUtterances,
+            fullText = fullText,
+            durationMs = state.elapsedTimeMs,
+            createdAt = now,
+            isComplete = false
+        )
+
+        val recording = Recording(
+            id = recordingId,
+            title = state.selectedTitlePrefix,
+            transcription = transcription,
+            audioFilePath = null,
+            createdAt = now,
+            updatedAt = now,
+            durationMs = state.elapsedTimeMs
+        )
+
+        try {
+            updateRecordingUseCase(recording)
+        } catch (e: Exception) {
+            logger.e(e) { "Failed to save transcription progress" }
         }
     }
 
@@ -186,6 +245,7 @@ class RecordingViewModel(
         }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
     fun startRecording() {
         logger.d { "startRecording() called, canStart=${_uiState.value.canStart}" }
         viewModelScope.launch {
@@ -200,6 +260,21 @@ class RecordingViewModel(
                 }
 
                 startTimeMs = Clock.System.now().toEpochMilliseconds()
+                val now = Clock.System.now()
+
+                // Generate a new recording ID and create initial entry in database
+                currentRecordingId = Uuid.random().toString()
+                val initialRecording = Recording(
+                    id = currentRecordingId!!,
+                    title = _uiState.value.selectedTitlePrefix,
+                    transcription = null,
+                    audioFilePath = null,
+                    createdAt = now,
+                    updatedAt = now,
+                    durationMs = 0
+                )
+                saveRecordingUseCase(initialRecording)
+                logger.d { "Created initial recording entry: ${currentRecordingId}" }
 
                 // Only start audio recorder if transcription service doesn't handle audio internally
                 // (e.g., Android SpeechRecognizer handles its own audio capture)
@@ -255,10 +330,17 @@ class RecordingViewModel(
                 val result = transcriptionService.stopTranscription()
                 logger.d { "stopTranscription returned: ${result?.utterances?.size ?: 0} utterances" }
 
-                result?.let { transcription ->
-                    logger.d { "Saving recording with ${transcription.utterances.size} utterances" }
-                    saveRecording(transcription)
+                // Save final recording with complete transcription
+                val recordingId = currentRecordingId
+                if (recordingId != null && result != null) {
+                    logger.d { "Saving final recording with ${result.utterances.size} utterances" }
+                    val finalTranscription = result.copy(
+                        id = recordingId,
+                        isComplete = true
+                    )
+                    saveFinalRecording(recordingId, finalTranscription)
                 }
+                currentRecordingId = null
             } catch (e: Exception) {
                 logger.e(e) { "Failed to stop recording" }
                 _uiState.update { it.copy(error = "Failed to stop: ${e.message}") }
@@ -266,17 +348,18 @@ class RecordingViewModel(
         }
     }
 
-    private suspend fun saveRecording(transcription: TranscriptionResult) {
+    private suspend fun saveFinalRecording(recordingId: String, transcription: TranscriptionResult) {
+        val now = Clock.System.now()
         val recording = Recording(
-            id = transcription.id,
+            id = recordingId,
             title = _uiState.value.selectedTitlePrefix,
             transcription = transcription,
             audioFilePath = null,
-            createdAt = transcription.createdAt,
-            updatedAt = transcription.createdAt,
+            createdAt = now,
+            updatedAt = now,
             durationMs = transcription.durationMs
         )
-        saveRecordingUseCase(recording)
+        updateRecordingUseCase(recording)
     }
 
     fun shareTranscription() {
