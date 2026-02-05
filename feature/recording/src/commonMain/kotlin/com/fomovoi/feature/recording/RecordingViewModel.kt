@@ -147,11 +147,15 @@ class RecordingViewModel(
     }
 
     fun initialize() {
-        if (isInitialized) {
+        // Reinitialize if transcription service is in ERROR state (e.g., after downloading a model)
+        val transcriptionState = transcriptionService.state.value
+        val needsReinit = transcriptionState == TranscriptionState.ERROR || transcriptionState == TranscriptionState.IDLE
+
+        if (isInitialized && !needsReinit) {
             logger.d { "initialize() called but already initialized, skipping" }
             return
         }
-        logger.d { "initialize() called" }
+        logger.d { "initialize() called (reinit=$needsReinit, state=$transcriptionState)" }
         viewModelScope.launch {
             try {
                 logger.d { "Initializing audioRecorder..." }

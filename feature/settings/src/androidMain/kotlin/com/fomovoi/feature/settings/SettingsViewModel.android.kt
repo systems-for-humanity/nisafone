@@ -43,6 +43,10 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     override fun loadModels() {
         viewModelScope.launch {
             try {
+                // First discover models from Hugging Face (cached after first call)
+                _uiState.update { it.copy(error = "Discovering available models...") }
+                modelManager.discoverModels()
+
                 val models = modelManager.getAvailableModels()
                 val selectedId = modelManager.getSelectedModelId()
                 val storageUsed = modelManager.getTotalStorageUsed() / 1_000_000
@@ -51,7 +55,8 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
                     it.copy(
                         models = models,
                         selectedModelId = selectedId,
-                        totalStorageUsedMB = storageUsed.toInt()
+                        totalStorageUsedMB = storageUsed.toInt(),
+                        error = null
                     )
                 }
             } catch (e: Exception) {

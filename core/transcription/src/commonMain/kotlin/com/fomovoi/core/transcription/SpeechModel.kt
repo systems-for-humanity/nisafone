@@ -10,12 +10,12 @@ enum class SpeechModelType(
 ) {
     WHISPER_TINY(
         displayName = "Whisper Tiny",
-        description = "Fast, good accuracy (~60MB)",
+        description = "Fast, good accuracy (~100MB)",
         isStreaming = false
     ),
     WHISPER_SMALL(
         displayName = "Whisper Small",
-        description = "Best accuracy, slower (~230MB)",
+        description = "Best accuracy, slower (~375MB)",
         isStreaming = false
     )
 }
@@ -60,9 +60,9 @@ object SpeechModelCatalog {
         language = SpeechLanguage.ENGLISH,
         baseUrl = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-tiny.en/resolve/main",
         files = listOf(
-            ModelFile("tiny.en-encoder.int8.onnx", 24_135_241L),
-            ModelFile("tiny.en-decoder.int8.onnx", 36_837_588L),
-            ModelFile("tiny.en-tokens.txt", 107_505L)
+            ModelFile("tiny.en-encoder.int8.onnx", 12_937_772L),
+            ModelFile("tiny.en-decoder.int8.onnx", 89_853_865L),
+            ModelFile("tiny.en-tokens.txt", 835_554L)
         )
     )
 
@@ -73,8 +73,8 @@ object SpeechModelCatalog {
         baseUrl = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small.en/resolve/main",
         files = listOf(
             ModelFile("small.en-encoder.int8.onnx", 112_442_483L),
-            ModelFile("small.en-decoder.int8.onnx", 120_938_400L),
-            ModelFile("small.en-tokens.txt", 107_505L)
+            ModelFile("small.en-decoder.int8.onnx", 262_223_042L),
+            ModelFile("small.en-tokens.txt", 835_554L)
         )
     )
 

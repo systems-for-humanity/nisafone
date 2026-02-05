@@ -27,6 +27,7 @@ class ModelManager(private val context: Context) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val modelsBaseDir = File(context.filesDir, MODELS_DIR)
+    private val discoveryService = ModelDiscoveryService()
 
     private val _downloadingModels = MutableStateFlow<Set<String>>(emptySet())
     val downloadingModels: StateFlow<Set<String>> = _downloadingModels.asStateFlow()
@@ -34,15 +35,38 @@ class ModelManager(private val context: Context) {
     private val _downloadProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
     val downloadProgress: StateFlow<Map<String, Float>> = _downloadProgress.asStateFlow()
 
+    // Cached discovered models
+    private var discoveredModels: List<SpeechModel>? = null
+
     init {
         modelsBaseDir.mkdirs()
     }
 
     /**
+     * Discover available models from Hugging Face.
+     * Results are cached after first call.
+     */
+    suspend fun discoverModels(): List<SpeechModel> {
+        discoveredModels?.let { return it }
+
+        return try {
+            val models = discoveryService.discoverModels()
+            discoveredModels = models
+            Log.d(TAG, "Discovered ${models.size} models from Hugging Face")
+            models
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to discover models, using fallback catalog: ${e.message}")
+            SpeechModelCatalog.allModels
+        }
+    }
+
+    /**
      * Get all available models with their download status.
+     * Uses cached discovered models or falls back to static catalog.
      */
     fun getAvailableModels(): List<SpeechModel> {
-        return SpeechModelCatalog.allModels.map { model ->
+        val models = discoveredModels ?: SpeechModelCatalog.allModels
+        return models.map { model ->
             model.copy(isDownloaded = isModelDownloaded(model))
         }
     }
@@ -140,39 +164,84 @@ class ModelManager(private val context: Context) {
         onBytesDownloaded: (Long) -> Unit
     ) {
         val tempFile = File(destination.parent, "${destination.name}.tmp")
+        val maxRetries = 3
+        var lastException: Exception? = null
 
-        try {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 30_000
-            connection.readTimeout = 60_000
-            connection.setRequestProperty("User-Agent", "Fomovoi-Android")
+        for (attempt in 1..maxRetries) {
+            try {
+                // Check if we can resume from partial download
+                val existingBytes = if (tempFile.exists()) tempFile.length() else 0L
 
-            connection.inputStream.use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    var totalBytesRead = 0L
-
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalBytesRead += bytesRead
-                        onBytesDownloaded(bytesRead.toLong())
+                if (existingBytes == expectedSize) {
+                    // Already downloaded completely
+                    if (!tempFile.renameTo(destination)) {
+                        throw Exception("Failed to rename temp file")
                     }
+                    return
+                }
 
-                    if (totalBytesRead != expectedSize) {
-                        throw Exception("Download incomplete: got $totalBytesRead bytes, expected $expectedSize")
+                Log.d(TAG, "Download attempt $attempt for ${destination.name} (resuming from $existingBytes bytes)")
+
+                val connection = URL(url).openConnection() as HttpURLConnection
+                connection.connectTimeout = 30_000
+                connection.readTimeout = 120_000 // Increased timeout
+                connection.setRequestProperty("User-Agent", "Fomovoi-Android")
+
+                // Resume support
+                if (existingBytes > 0) {
+                    connection.setRequestProperty("Range", "bytes=$existingBytes-")
+                }
+
+                val responseCode = connection.responseCode
+                val isResuming = responseCode == 206 // Partial content
+
+                if (responseCode != 200 && responseCode != 206) {
+                    throw Exception("HTTP error: $responseCode")
+                }
+
+                val startBytes = if (isResuming) existingBytes else 0L
+
+                connection.inputStream.use { input ->
+                    FileOutputStream(tempFile, isResuming).use { output ->
+                        val buffer = ByteArray(32768) // Larger buffer
+                        var bytesRead: Int
+                        var totalBytesRead = startBytes
+
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalBytesRead += bytesRead
+                            if (!isResuming || totalBytesRead > existingBytes) {
+                                onBytesDownloaded(bytesRead.toLong())
+                            }
+                        }
+
+                        if (totalBytesRead != expectedSize) {
+                            throw Exception("Download incomplete: got $totalBytesRead bytes, expected $expectedSize")
+                        }
                     }
                 }
-            }
 
-            if (!tempFile.renameTo(destination)) {
-                throw Exception("Failed to rename temp file")
-            }
+                if (!tempFile.renameTo(destination)) {
+                    throw Exception("Failed to rename temp file")
+                }
 
-        } catch (e: Exception) {
-            tempFile.delete()
-            throw Exception("Failed to download from $url: ${e.message}", e)
+                Log.d(TAG, "Successfully downloaded ${destination.name}")
+                return // Success!
+
+            } catch (e: Exception) {
+                lastException = e
+                Log.w(TAG, "Download attempt $attempt failed: ${e.message}")
+
+                if (attempt < maxRetries) {
+                    // Wait before retry (exponential backoff)
+                    Thread.sleep((1000 * attempt).toLong())
+                }
+            }
         }
+
+        // All retries failed
+        tempFile.delete()
+        throw Exception("Failed to download after $maxRetries attempts: ${lastException?.message}", lastException)
     }
 
     /**
@@ -206,7 +275,9 @@ class ModelManager(private val context: Context) {
      */
     fun getSelectedModel(): SpeechModel? {
         val modelId = getSelectedModelId() ?: return null
-        val model = SpeechModelCatalog.getModelById(modelId) ?: return null
+        // First try discovered models, then fall back to catalog
+        val models = discoveredModels ?: SpeechModelCatalog.allModels
+        val model = models.find { it.id == modelId } ?: return null
         return if (isModelDownloaded(model)) model else null
     }
 

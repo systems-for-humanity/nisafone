@@ -75,6 +75,9 @@ class SherpaOnnxTranscriptionService(
         _state.value = TranscriptionState.INITIALIZING
 
         try {
+            // First discover models from Hugging Face to get accurate file sizes
+            modelManager.discoverModels()
+
             val selectedModel = modelManager.getSelectedModel()
 
             if (selectedModel == null) {
