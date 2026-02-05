@@ -40,9 +40,6 @@ data class RecordingUiState(
         get() = recordingState == RecordingState.RECORDING ||
                 transcriptionState == TranscriptionState.TRANSCRIBING
 
-    val isPaused: Boolean
-        get() = recordingState == RecordingState.PAUSED
-
     val canStart: Boolean
         get() = recordingState == RecordingState.IDLE &&
                 (transcriptionState == TranscriptionState.READY || transcriptionState == TranscriptionState.IDLE)
@@ -217,29 +214,10 @@ class RecordingViewModel(
 
     private fun startElapsedTimeUpdates() {
         viewModelScope.launch {
-            while (_uiState.value.isRecording || _uiState.value.isPaused) {
-                if (_uiState.value.isRecording) {
-                    val elapsed = Clock.System.now().toEpochMilliseconds() - startTimeMs
-                    _uiState.update { it.copy(elapsedTimeMs = elapsed) }
-                }
+            while (_uiState.value.isRecording) {
+                val elapsed = Clock.System.now().toEpochMilliseconds() - startTimeMs
+                _uiState.update { it.copy(elapsedTimeMs = elapsed) }
                 kotlinx.coroutines.delay(100)
-            }
-        }
-    }
-
-    fun pauseRecording() {
-        viewModelScope.launch {
-            if (!transcriptionService.handlesAudioInternally) {
-                audioRecorder.pauseRecording()
-            }
-            // Note: Android SpeechRecognizer doesn't support pause, so we just stop and restart
-        }
-    }
-
-    fun resumeRecording() {
-        viewModelScope.launch {
-            if (!transcriptionService.handlesAudioInternally) {
-                audioRecorder.resumeRecording()
             }
         }
     }

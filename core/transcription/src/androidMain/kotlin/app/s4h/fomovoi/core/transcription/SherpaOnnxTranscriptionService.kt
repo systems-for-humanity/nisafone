@@ -30,12 +30,13 @@ import java.util.UUID
  * Transcription service using Sherpa-ONNX Whisper models for on-device speech recognition.
  * Uses batch processing - audio is accumulated during recording and transcribed when stopped.
  */
-fun createSherpaOnnxTranscriptionService(context: Context): TranscriptionService {
-    return SherpaOnnxTranscriptionService(context)
+fun createSherpaOnnxTranscriptionService(context: Context, modelManager: ModelManager): TranscriptionService {
+    return SherpaOnnxTranscriptionService(context, modelManager)
 }
 
 class SherpaOnnxTranscriptionService(
-    private val context: Context
+    private val context: Context,
+    private val modelManager: ModelManager
 ) : TranscriptionService {
 
     companion object {
@@ -46,7 +47,6 @@ class SherpaOnnxTranscriptionService(
 
     private val logger = Logger.withTag("SherpaOnnxTranscriptionService")
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val modelManager = ModelManager(context)
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private var recognizer: OfflineRecognizer? = null

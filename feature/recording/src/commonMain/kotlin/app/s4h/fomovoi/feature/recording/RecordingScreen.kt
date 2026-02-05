@@ -25,8 +25,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
@@ -85,11 +83,8 @@ fun RecordingScreen(
         floatingActionButton = {
             RecordingFab(
                 isRecording = uiState.isRecording,
-                isPaused = uiState.isPaused,
                 canStart = uiState.canStart,
                 onStart = viewModel::startRecording,
-                onPause = viewModel::pauseRecording,
-                onResume = viewModel::resumeRecording,
                 onStop = viewModel::stopRecording
             )
         },
@@ -336,56 +331,38 @@ private fun PartialTextItem(
 @Composable
 private fun RecordingFab(
     isRecording: Boolean,
-    isPaused: Boolean,
     canStart: Boolean,
     onStart: () -> Unit,
-    onPause: () -> Unit,
-    onResume: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier
-    ) {
-        if (isRecording || isPaused) {
-            // Stop button
-            FloatingActionButton(
-                onClick = onStop,
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Stop,
-                    contentDescription = "Stop recording",
-                    tint = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-
-            // Pause/Resume button
-            FloatingActionButton(
-                onClick = if (isPaused) onResume else onPause,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Icon(
-                    imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                    contentDescription = if (isPaused) "Resume" else "Pause",
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-            }
-        } else {
-            // Start button
-            FloatingActionButton(
-                onClick = onStart,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(72.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Start recording",
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+    if (isRecording) {
+        // Stop button
+        FloatingActionButton(
+            onClick = onStop,
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            modifier = modifier.size(72.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Stop,
+                contentDescription = "Stop recording",
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+    } else {
+        // Start button
+        FloatingActionButton(
+            onClick = onStart,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            modifier = modifier.size(72.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Mic,
+                contentDescription = "Start recording",
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(32.dp)
+            )
         }
     }
 }

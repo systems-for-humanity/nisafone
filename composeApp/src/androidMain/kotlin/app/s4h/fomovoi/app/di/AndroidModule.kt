@@ -16,12 +16,13 @@ import org.koin.dsl.module
 val androidModule = module {
     // Platform-specific implementations
     single<AudioRecorder> { createAudioRecorder() }
-    // Use Sherpa-ONNX for continuous on-device transcription
-    single<TranscriptionService> { createSherpaOnnxTranscriptionService(androidContext()) }
-    single<ShareService> { createAndroidShareService(androidContext()) }
 
-    // Model management
+    // Model management (must be defined before TranscriptionService)
     single { ModelManager(androidContext()) }
+
+    // Use Sherpa-ONNX for continuous on-device transcription
+    single<TranscriptionService> { createSherpaOnnxTranscriptionService(androidContext(), get()) }
+    single<ShareService> { createAndroidShareService(androidContext()) }
 
     // ViewModels - register with interface type for KMP compatibility
     single<SettingsViewModelInterface> { SettingsViewModel() }
