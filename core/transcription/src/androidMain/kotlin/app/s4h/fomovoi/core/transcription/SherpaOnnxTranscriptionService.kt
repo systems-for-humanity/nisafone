@@ -316,10 +316,6 @@ class SherpaOnnxTranscriptionService(
         sessionStartTime = System.currentTimeMillis()
 
         _state.value = TranscriptionState.TRANSCRIBING
-
-        scope.launch {
-            _events.emit(TranscriptionEvent.PartialResult("Recording..."))
-        }
     }
 
     override suspend fun processAudioChunk(chunk: AudioChunk) {
@@ -347,23 +343,6 @@ class SherpaOnnxTranscriptionService(
                     val chunkIndex = currentChunkIndex++
                     startBackgroundTranscription(chunkIndex, chunkToTranscribe)
                 }
-            }
-        }
-
-        // Emit periodic status updates
-        val totalSamples = transcriptionMutex.withLock { audioBuffer.sumOf { it.size } }
-        val durationSecs = totalSamples / SAMPLE_RATE
-        val completedChunks = transcriptionResults.count { it.value.isCompleted }
-        val pendingChunks = currentChunkIndex - completedChunks
-
-        if (durationSecs > 0 && durationSecs % 5 == 0) {
-            val status = if (pendingChunks > 0) {
-                "Recording: ${durationSecs}s (transcribing $pendingChunks chunks...)"
-            } else {
-                "Recording: ${durationSecs}s"
-            }
-            scope.launch {
-                _events.emit(TranscriptionEvent.PartialResult(status))
             }
         }
     }
@@ -467,10 +446,6 @@ class SherpaOnnxTranscriptionService(
                 if (remainingSamples != null && remainingSamples.isNotEmpty()) {
                     val chunkIndex = currentChunkIndex++
                     Log.d(TAG, "Transcribing final chunk $chunkIndex (${remainingSamples.size / SAMPLE_RATE}s)")
-
-                    scope.launch {
-                        _events.emit(TranscriptionEvent.PartialResult("Transcribing final chunk..."))
-                    }
 
                     val finalText = transcribeChunk(currentRecognizer, remainingSamples)
                     val deferred = CompletableDeferred<String>()
