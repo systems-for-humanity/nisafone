@@ -28,6 +28,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(project(":core:domain"))
+            implementation(project(":core:transcription"))
 
             implementation(compose.runtime)
             implementation(compose.foundation)
@@ -45,6 +46,7 @@ kotlin {
 
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
+            implementation(libs.koin.android)
             implementation(libs.androidx.lifecycle.viewmodel)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
         }
