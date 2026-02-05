@@ -3,6 +3,8 @@ package com.fomovoi.core.transcription
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -19,7 +21,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
+import java.util.Locale
 import java.util.UUID
 
 actual fun createTranscriptionService(): TranscriptionService {
@@ -36,11 +40,13 @@ class AndroidTranscriptionService(
 
     private val logger = Logger.withTag("AndroidTranscriptionService")
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var speechRecognizer: SpeechRecognizer? = null
     private val utterances = mutableListOf<Utterance>()
     private var currentUtteranceStart: Long = 0
     private var sessionStartTime: Long = 0
+    private var isListening = false
 
     private val _state = MutableStateFlow(TranscriptionState.IDLE)
     override val state: StateFlow<TranscriptionState> = _state.asStateFlow()
@@ -60,14 +66,15 @@ class AndroidTranscriptionService(
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             logger.e { "Speech recognition not available" }
             _state.value = TranscriptionState.ERROR
-            scope.launch {
-                _events.emit(TranscriptionEvent.Error("Speech recognition not available on this device"))
-            }
+            _events.emit(TranscriptionEvent.Error("Speech recognition not available on this device"))
             return
         }
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
-        speechRecognizer?.setRecognitionListener(createRecognitionListener())
+        // SpeechRecognizer MUST be created on main thread
+        withContext(Dispatchers.Main) {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            speechRecognizer?.setRecognitionListener(createRecognitionListener())
+        }
 
         // Initialize default speaker
         val defaultSpeaker = Speaker(id = "speaker_1", label = "Speaker 1")
@@ -81,6 +88,7 @@ class AndroidTranscriptionService(
     private fun createRecognitionListener() = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
             logger.d { "Ready for speech" }
+            isListening = true
             currentUtteranceStart = System.currentTimeMillis() - sessionStartTime
         }
 
@@ -98,57 +106,78 @@ class AndroidTranscriptionService(
 
         override fun onEndOfSpeech() {
             logger.d { "End of speech" }
+            isListening = false
         }
 
         override fun onError(error: Int) {
+            isListening = false
             val errorMessage = when (error) {
                 SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
                 SpeechRecognizer.ERROR_CLIENT -> "Client side error"
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
                 SpeechRecognizer.ERROR_NETWORK -> "Network error"
                 SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                SpeechRecognizer.ERROR_NO_MATCH -> "No match found"
+                SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
                 SpeechRecognizer.ERROR_SERVER -> "Server error"
-                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
                 else -> "Unknown error: $error"
             }
-            logger.e { "Recognition error: $errorMessage" }
+            logger.e { "Recognition error: $errorMessage (code: $error)" }
 
-            // Restart recognition for continuous listening (except for fatal errors)
-            if (error != SpeechRecognizer.ERROR_CLIENT &&
-                error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS &&
-                _state.value == TranscriptionState.TRANSCRIBING) {
-                startListening()
+            // Emit error for fatal errors only
+            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                scope.launch {
+                    _events.emit(TranscriptionEvent.Error(errorMessage))
+                }
+                return
+            }
+
+            // Restart recognition for continuous listening
+            if (_state.value == TranscriptionState.TRANSCRIBING) {
+                // Small delay before restarting to avoid rapid restarts
+                mainHandler.postDelayed({
+                    if (_state.value == TranscriptionState.TRANSCRIBING) {
+                        logger.d { "Restarting speech recognition after error" }
+                        startListeningInternal()
+                    }
+                }, 100)
             }
         }
 
         override fun onResults(results: Bundle?) {
+            isListening = false
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            val text = matches?.firstOrNull() ?: return
+            val text = matches?.firstOrNull()
 
-            logger.d { "Final result: $text" }
+            if (!text.isNullOrBlank()) {
+                logger.d { "Final result: $text" }
 
-            val currentTime = System.currentTimeMillis() - sessionStartTime
-            val speaker = _currentSpeaker.value ?: return
+                val currentTime = System.currentTimeMillis() - sessionStartTime
+                val speaker = _currentSpeaker.value ?: return
 
-            val utterance = Utterance(
-                id = UUID.randomUUID().toString(),
-                text = text,
-                speaker = speaker,
-                startTimeMs = currentUtteranceStart,
-                endTimeMs = currentTime
-            )
+                val utterance = Utterance(
+                    id = UUID.randomUUID().toString(),
+                    text = text,
+                    speaker = speaker,
+                    startTimeMs = currentUtteranceStart,
+                    endTimeMs = currentTime
+                )
 
-            utterances.add(utterance)
+                utterances.add(utterance)
 
-            scope.launch {
-                _events.emit(TranscriptionEvent.FinalResult(utterance))
+                scope.launch {
+                    _events.emit(TranscriptionEvent.FinalResult(utterance))
+                }
             }
 
             // Continue listening if still transcribing
             if (_state.value == TranscriptionState.TRANSCRIBING) {
-                startListening()
+                mainHandler.postDelayed({
+                    if (_state.value == TranscriptionState.TRANSCRIBING) {
+                        startListeningInternal()
+                    }
+                }, 100)
             }
         }
 
@@ -156,8 +185,10 @@ class AndroidTranscriptionService(
             val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             val text = matches?.firstOrNull() ?: return
 
-            scope.launch {
-                _events.emit(TranscriptionEvent.PartialResult(text))
+            if (text.isNotBlank()) {
+                scope.launch {
+                    _events.emit(TranscriptionEvent.PartialResult(text))
+                }
             }
         }
 
@@ -177,16 +208,27 @@ class AndroidTranscriptionService(
         sessionStartTime = System.currentTimeMillis()
         _state.value = TranscriptionState.TRANSCRIBING
 
-        startListening()
+        withContext(Dispatchers.Main) {
+            startListeningInternal()
+        }
     }
 
-    private fun startListening() {
+    private fun startListeningInternal() {
+        if (isListening) {
+            logger.d { "Already listening, skipping start" }
+            return
+        }
+
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            // Don't force offline - let it use network if needed
+            // putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
+
+        logger.d { "Starting speech recognizer with language: ${Locale.getDefault().toLanguageTag()}" }
         speechRecognizer?.startListening(intent)
     }
 
@@ -197,8 +239,13 @@ class AndroidTranscriptionService(
 
     override suspend fun stopTranscription(): TranscriptionResult? {
         logger.d { "Stopping transcription" }
-        speechRecognizer?.stopListening()
         _state.value = TranscriptionState.READY
+        isListening = false
+
+        withContext(Dispatchers.Main) {
+            speechRecognizer?.stopListening()
+            speechRecognizer?.cancel()
+        }
 
         if (utterances.isEmpty()) {
             return null
@@ -240,8 +287,12 @@ class AndroidTranscriptionService(
 
     override fun release() {
         logger.d { "Releasing transcription service" }
+        isListening = false
+        mainHandler.removeCallbacksAndMessages(null)
         scope.cancel()
-        speechRecognizer?.destroy()
-        speechRecognizer = null
+        mainHandler.post {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+        }
     }
 }
