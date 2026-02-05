@@ -88,6 +88,11 @@ fun RecordingScreen(
         }
     }
 
+    // Keep screen on while recording
+    if (uiState.isRecording) {
+        KeepScreenOn()
+    }
+
     // Add prefix dialog
     if (uiState.showAddPrefixDialog) {
         AddPrefixDialog(
