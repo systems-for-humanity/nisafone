@@ -54,7 +54,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.feature.settings"
+    namespace = "app.s4h.fomovoi.feature.settings"
     compileSdk = 35
 
     defaultConfig {

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.fomovoi.android"
+    namespace = "app.s4h.fomovoi.android"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.fomovoi.android"
+        applicationId = "app.s4h.fomovoi.android"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

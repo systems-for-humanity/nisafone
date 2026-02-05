@@ -10,6 +10,6 @@ plugins {
 }
 
 allprojects {
-    group = "com.fomovoi"
+    group = "app.s4h.fomovoi"
     version = "1.0.0"
 }

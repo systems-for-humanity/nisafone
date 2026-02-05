@@ -35,7 +35,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.core.domain"
+    namespace = "app.s4h.fomovoi.core.domain"
     compileSdk = 35
 
     defaultConfig {

@@ -39,7 +39,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.core.sharing"
+    namespace = "app.s4h.fomovoi.core.sharing"
     compileSdk = 35
 
     defaultConfig {

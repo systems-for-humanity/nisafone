@@ -42,7 +42,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.core.transcription"
+    namespace = "app.s4h.fomovoi.core.transcription"
     compileSdk = 35
 
     defaultConfig {

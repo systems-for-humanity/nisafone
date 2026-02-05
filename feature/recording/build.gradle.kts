@@ -57,7 +57,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.feature.recording"
+    namespace = "app.s4h.fomovoi.feature.recording"
     compileSdk = 35
 
     defaultConfig {

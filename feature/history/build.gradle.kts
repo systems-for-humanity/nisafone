@@ -55,7 +55,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.feature.history"
+    namespace = "app.s4h.fomovoi.feature.history"
     compileSdk = 35
 
     defaultConfig {

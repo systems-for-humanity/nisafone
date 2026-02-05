@@ -48,7 +48,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.core.data"
+    namespace = "app.s4h.fomovoi.core.data"
     compileSdk = 35
 
     defaultConfig {
@@ -64,7 +64,7 @@ android {
 sqldelight {
     databases {
         create("FomovoiDatabase") {
-            packageName.set("com.fomovoi.core.data.local")
+            packageName.set("app.s4h.fomovoi.core.data.local")
         }
     }
 }

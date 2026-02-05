@@ -36,7 +36,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.fomovoi.core.audio"
+    namespace = "app.s4h.fomovoi.core.audio"
     compileSdk = 35
 
     defaultConfig {
