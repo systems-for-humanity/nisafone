@@ -10,7 +10,6 @@ data class Recording(
     val id: String,
     val title: String,
     val transcription: TranscriptionResult?,
-    val audioFilePath: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
     val durationMs: Long,
@@ -27,11 +26,3 @@ data class Recording(
             return "$prefix - $month $day, $hour:$minute"
         }
 }
-
-@Serializable
-data class RecordingSettings(
-    val autoSave: Boolean = true,
-    val saveAudioFile: Boolean = false,
-    val defaultSpeakerCount: Int = 2,
-    val preferOfflineRecognition: Boolean = true
-)

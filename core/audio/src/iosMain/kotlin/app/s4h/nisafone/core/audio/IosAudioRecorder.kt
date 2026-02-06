@@ -189,25 +189,6 @@ class IosAudioRecorder : AudioRecorder {
         }
     }
 
-    override suspend fun pauseRecording() {
-        if (_state.value != RecordingState.RECORDING) return
-        logger.d { "Pausing recording" }
-        audioEngine?.pause()
-        _state.value = RecordingState.PAUSED
-    }
-
-    override suspend fun resumeRecording() {
-        if (_state.value != RecordingState.PAUSED) return
-        logger.d { "Resuming recording" }
-        try {
-            audioEngine?.startAndReturnError(null)
-            _state.value = RecordingState.RECORDING
-        } catch (e: Exception) {
-            logger.e(e) { "Failed to resume recording" }
-            _state.value = RecordingState.ERROR
-        }
-    }
-
     override suspend fun stopRecording() {
         logger.d { "Stopping recording" }
         audioEngine?.inputNode?.removeTapOnBus(0u)

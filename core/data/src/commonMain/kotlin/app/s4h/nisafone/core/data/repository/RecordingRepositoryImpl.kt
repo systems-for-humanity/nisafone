@@ -46,7 +46,6 @@ class RecordingRepositoryImpl(
             id = recording.id,
             title = recording.title,
             transcriptionJson = recording.transcription?.let { json.encodeToString(it) },
-            audioFilePath = recording.audioFilePath,
             createdAt = recording.createdAt.toEpochMilliseconds(),
             updatedAt = recording.updatedAt.toEpochMilliseconds(),
             durationMs = recording.durationMs,
@@ -62,13 +61,12 @@ class RecordingRepositoryImpl(
     override suspend fun updateRecording(recording: Recording) = withContext(Dispatchers.IO) {
         logger.d { "Updating recording: ${recording.id}" }
         queries.update(
-            id = recording.id,
             title = recording.title,
             transcriptionJson = recording.transcription?.let { json.encodeToString(it) },
-            audioFilePath = recording.audioFilePath,
             updatedAt = recording.updatedAt.toEpochMilliseconds(),
             durationMs = recording.durationMs,
-            isFavorite = if (recording.isFavorite) 1L else 0L
+            isFavorite = if (recording.isFavorite) 1L else 0L,
+            id = recording.id
         )
     }
 
@@ -84,7 +82,6 @@ class RecordingRepositoryImpl(
                     null
                 }
             },
-            audioFilePath = audioFilePath,
             createdAt = Instant.fromEpochMilliseconds(createdAt),
             updatedAt = Instant.fromEpochMilliseconds(updatedAt),
             durationMs = durationMs,

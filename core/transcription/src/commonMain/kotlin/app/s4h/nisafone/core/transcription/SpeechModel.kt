@@ -71,12 +71,6 @@ data class SpeechModel(
 
     val displayName: String
         get() = "${type.displayName} (${language.displayName})"
-
-    /**
-     * Get the file prefix used for model files (e.g., "tiny.en", "large-v3")
-     */
-    val filePrefix: String
-        get() = id.removePrefix("whisper-")
 }
 
 /**

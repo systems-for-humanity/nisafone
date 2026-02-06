@@ -37,7 +37,6 @@ data class AudioChunk(
 enum class RecordingState {
     IDLE,
     RECORDING,
-    PAUSED,
     ERROR
 }
 
@@ -49,8 +48,6 @@ interface AudioRecorder {
 
     suspend fun initialize()
     suspend fun startRecording()
-    suspend fun pauseRecording()
-    suspend fun resumeRecording()
     suspend fun stopRecording()
     suspend fun selectDevice(device: AudioDevice)
     fun release()

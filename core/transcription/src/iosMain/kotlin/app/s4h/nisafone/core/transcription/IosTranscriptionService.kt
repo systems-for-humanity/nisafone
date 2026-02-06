@@ -62,7 +62,7 @@ class IosTranscriptionService : TranscriptionService {
 
     override suspend fun initialize() {
         logger.d { "Initializing iOS transcription service" }
-        _state.value = TranscriptionState.INITIALIZING
+        _state.value = TranscriptionState.IDLE
 
         SFSpeechRecognizer.requestAuthorization { status ->
             scope.launch {
@@ -225,16 +225,6 @@ class IosTranscriptionService : TranscriptionService {
         )
     }
 
-    override suspend fun setSpeakerLabel(speakerId: String, label: String) {
-        speakers[speakerId]?.let { speaker ->
-            val updated = speaker.copy(label = label)
-            speakers[speakerId] = updated
-            if (_currentSpeaker.value?.id == speakerId) {
-                _currentSpeaker.value = updated
-            }
-        }
-    }
-
     override suspend fun setLanguage(language: SpeechLanguage) {
         // iOS SFSpeechRecognizer uses system language
         _currentLanguage.value = language
@@ -248,17 +238,6 @@ class IosTranscriptionService : TranscriptionService {
     override suspend fun setTranslateToEnglish(translate: Boolean) {
         // iOS SFSpeechRecognizer doesn't support translation
         _translateToEnglish.value = translate
-    }
-
-    fun switchSpeaker() {
-        val nextSpeakerId = "speaker_${speakers.size + 1}"
-        val newSpeaker = speakers.getOrPut(nextSpeakerId) {
-            Speaker(id = nextSpeakerId, label = "Speaker ${speakers.size + 1}")
-        }
-        _currentSpeaker.value = newSpeaker
-        scope.launch {
-            _events.emit(TranscriptionEvent.SpeakerChange(newSpeaker))
-        }
     }
 
     override fun release() {

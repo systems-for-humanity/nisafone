@@ -188,20 +188,6 @@ class AndroidAudioRecorder(
         }
     }
 
-    override suspend fun pauseRecording() {
-        if (_state.value != RecordingState.RECORDING) return
-        logger.d { "Pausing recording" }
-        _state.value = RecordingState.PAUSED
-        audioRecord?.stop()
-    }
-
-    override suspend fun resumeRecording() {
-        if (_state.value != RecordingState.PAUSED) return
-        logger.d { "Resuming recording" }
-        audioRecord?.startRecording()
-        _state.value = RecordingState.RECORDING
-    }
-
     override suspend fun stopRecording() {
         logger.d { "Stopping recording" }
         recordingJob?.cancel()

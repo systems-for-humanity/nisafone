@@ -178,9 +178,6 @@ class RecordingViewModel(
                         // Save with final utterance
                         saveCurrentTranscription()
                     }
-                    is TranscriptionEvent.SpeakerChange -> {
-                        _uiState.update { it.copy(currentSpeaker = event.newSpeaker) }
-                    }
                     is TranscriptionEvent.Error -> {
                         logger.e { "Transcription error: ${event.message}" }
                         _uiState.update { it.copy(error = event.message) }
@@ -227,7 +224,6 @@ class RecordingViewModel(
             id = recordingId,
             title = state.selectedTitlePrefix,
             transcription = transcription,
-            audioFilePath = null,
             createdAt = now,
             updatedAt = now,
             durationMs = state.elapsedTimeMs
@@ -288,7 +284,6 @@ class RecordingViewModel(
                     id = currentRecordingId!!,
                     title = _uiState.value.selectedTitlePrefix,
                     transcription = null,
-                    audioFilePath = null,
                     createdAt = now,
                     updatedAt = now,
                     durationMs = 0
@@ -377,7 +372,6 @@ class RecordingViewModel(
             id = recordingId,
             title = _uiState.value.selectedTitlePrefix,
             transcription = transcription,
-            audioFilePath = null,
             createdAt = now,
             updatedAt = now,
             durationMs = transcription.durationMs
@@ -434,11 +428,6 @@ class RecordingViewModel(
                 appendLine("[${_uiState.value.currentSpeaker?.label ?: "Speaker"}]: ${_uiState.value.partialText}...")
             }
         }
-    }
-
-    fun switchSpeaker() {
-        // This would be called by the platform-specific transcription service
-        // For now, emit through the transcription service
     }
 
     fun clearError() {

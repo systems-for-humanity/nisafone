@@ -42,28 +42,12 @@ class IosShareService : ShareService {
             appendLine("Transcription - ${result.createdAt}")
             appendLine("Duration: ${formatDuration(result.durationMs)}")
             appendLine()
-            appendLine(result.formattedText)
+            appendLine(result.utterances.joinToString("\n\n") { utterance ->
+                "[${utterance.speaker.label}]: ${utterance.text}"
+            })
         }
 
         return shareText(formattedText, "Nisafone Transcription")
-    }
-
-    override suspend fun shareToApp(text: String, target: ShareTarget): ShareResult {
-        // iOS doesn't support direct app targeting like Android
-        // Fall back to general share sheet
-        return shareText(text)
-    }
-
-    override fun getAvailableTargets(): List<ShareTarget> {
-        // iOS doesn't provide a way to enumerate share targets
-        // Return common AI assistant apps that users might want to share to
-        return listOf(
-            ShareTarget(id = "chatgpt", name = "ChatGPT"),
-            ShareTarget(id = "claude", name = "Claude"),
-            ShareTarget(id = "notes", name = "Notes"),
-            ShareTarget(id = "mail", name = "Mail"),
-            ShareTarget(id = "messages", name = "Messages")
-        )
     }
 
     override suspend fun sendEmail(to: String, subject: String, body: String): ShareResult {

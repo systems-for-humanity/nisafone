@@ -47,48 +47,12 @@ class AndroidShareService(
             appendLine("Transcription - ${result.createdAt}")
             appendLine("Duration: ${formatDuration(result.durationMs)}")
             appendLine()
-            appendLine(result.formattedText)
+            appendLine(result.utterances.joinToString("\n\n") { utterance ->
+                "[${utterance.speaker.label}]: ${utterance.text}"
+            })
         }
 
         return shareText(formattedText, "Nisafone Transcription")
-    }
-
-    override suspend fun shareToApp(text: String, target: ShareTarget): ShareResult {
-        return try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, text)
-                target.packageName?.let { setPackage(it) }
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-
-            context.startActivity(intent)
-            ShareResult.Success
-        } catch (e: Exception) {
-            logger.e(e) { "Failed to share to app: ${target.name}" }
-            ShareResult.Error(e.message ?: "Failed to share to ${target.name}")
-        }
-    }
-
-    override fun getAvailableTargets(): List<ShareTarget> {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-        }
-
-        val packageManager = context.packageManager
-        val resolveInfos = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-
-        return resolveInfos.mapNotNull { resolveInfo ->
-            try {
-                ShareTarget(
-                    id = resolveInfo.activityInfo.packageName,
-                    name = resolveInfo.loadLabel(packageManager).toString(),
-                    packageName = resolveInfo.activityInfo.packageName
-                )
-            } catch (e: Exception) {
-                null
-            }
-        }.distinctBy { it.packageName }
     }
 
     override suspend fun sendEmail(to: String, subject: String, body: String): ShareResult {

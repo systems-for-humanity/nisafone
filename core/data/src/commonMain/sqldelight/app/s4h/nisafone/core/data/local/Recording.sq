@@ -2,7 +2,6 @@ CREATE TABLE RecordingEntity (
     id TEXT NOT NULL PRIMARY KEY,
     title TEXT NOT NULL,
     transcriptionJson TEXT,
-    audioFilePath TEXT,
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL,
     durationMs INTEGER NOT NULL,
@@ -16,13 +15,13 @@ selectById:
 SELECT * FROM RecordingEntity WHERE id = ?;
 
 insert:
-INSERT OR REPLACE INTO RecordingEntity (id, title, transcriptionJson, audioFilePath, createdAt, updatedAt, durationMs, isFavorite)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO RecordingEntity (id, title, transcriptionJson, createdAt, updatedAt, durationMs, isFavorite)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 deleteById:
 DELETE FROM RecordingEntity WHERE id = ?;
 
 update:
 UPDATE RecordingEntity
-SET title = ?, transcriptionJson = ?, audioFilePath = ?, updatedAt = ?, durationMs = ?, isFavorite = ?
+SET title = ?, transcriptionJson = ?, updatedAt = ?, durationMs = ?, isFavorite = ?
 WHERE id = ?;

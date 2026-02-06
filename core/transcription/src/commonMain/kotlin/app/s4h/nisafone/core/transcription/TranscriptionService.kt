@@ -25,7 +25,6 @@ interface TranscriptionService {
     suspend fun startTranscription()
     suspend fun processAudioChunk(chunk: AudioChunk)
     suspend fun stopTranscription(): TranscriptionResult?
-    suspend fun setSpeakerLabel(speakerId: String, label: String)
 
     /**
      * Change the speech recognition language.

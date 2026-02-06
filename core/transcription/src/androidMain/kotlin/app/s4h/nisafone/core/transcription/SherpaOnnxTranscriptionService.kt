@@ -144,7 +144,7 @@ class SherpaOnnxTranscriptionService(
     override suspend fun initialize() {
         Log.d(TAG, "initialize() called")
         logger.d { "Initializing Sherpa-ONNX Whisper transcription service" }
-        _state.value = TranscriptionState.INITIALIZING
+        _state.value = TranscriptionState.IDLE
 
         try {
             // Run heavy initialization work off the main thread
@@ -218,8 +218,8 @@ class SherpaOnnxTranscriptionService(
     }
 
     private fun createWhisperConfig(modelDir: File, model: SpeechModel): OfflineRecognizerConfig {
-        // Use the model's file prefix to construct file names dynamically
-        val prefix = model.filePrefix
+        // Use the model's id to construct file names dynamically
+        val prefix = model.id.removePrefix("whisper-")
         val encoderName = "$prefix-encoder.int8.onnx"
         val decoderName = "$prefix-decoder.int8.onnx"
         val tokensName = "$prefix-tokens.txt"
@@ -281,7 +281,7 @@ class SherpaOnnxTranscriptionService(
                 stopTranscription()
             }
 
-            _state.value = TranscriptionState.INITIALIZING
+            _state.value = TranscriptionState.IDLE
             try {
                 withContext(Dispatchers.IO) {
                     initializeWithModel(modelForLanguage)
@@ -311,7 +311,7 @@ class SherpaOnnxTranscriptionService(
                 stopTranscription()
             }
 
-            _state.value = TranscriptionState.INITIALIZING
+            _state.value = TranscriptionState.IDLE
             try {
                 withContext(Dispatchers.IO) {
                     initializeWithModel(model)
@@ -339,7 +339,7 @@ class SherpaOnnxTranscriptionService(
                 stopTranscription()
             }
 
-            _state.value = TranscriptionState.INITIALIZING
+            _state.value = TranscriptionState.IDLE
             try {
                 withContext(Dispatchers.IO) {
                     initializeWithModel(model)
@@ -571,16 +571,6 @@ class SherpaOnnxTranscriptionService(
         stream.acceptWaveform(samples, SAMPLE_RATE)
         recognizer.decode(stream)
         return recognizer.getResult(stream).text.trim()
-    }
-
-    override suspend fun setSpeakerLabel(speakerId: String, label: String) {
-        speakers[speakerId]?.let { speaker ->
-            val updated = speaker.copy(label = label)
-            speakers[speakerId] = updated
-            if (_currentSpeaker.value?.id == speakerId) {
-                _currentSpeaker.value = updated
-            }
-        }
     }
 
     override fun release() {

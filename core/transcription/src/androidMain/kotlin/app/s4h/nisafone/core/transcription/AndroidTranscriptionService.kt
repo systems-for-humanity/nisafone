@@ -83,7 +83,7 @@ class AndroidTranscriptionService(
     override suspend fun initialize() {
         Log.d(TAG, "initialize() called")
         logger.d { "Initializing Android transcription service" }
-        _state.value = TranscriptionState.INITIALIZING
+        _state.value = TranscriptionState.IDLE
 
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             Log.e(TAG, "Speech recognition not available on this device")
@@ -336,15 +336,6 @@ class AndroidTranscriptionService(
         )
     }
 
-    override suspend fun setSpeakerLabel(speakerId: String, label: String) {
-        speakers[speakerId]?.let { speaker ->
-            val updated = speaker.copy(label = label)
-            speakers[speakerId] = updated
-            if (_currentSpeaker.value?.id == speakerId) {
-                _currentSpeaker.value = updated
-            }
-        }
-    }
 
     override suspend fun setLanguage(language: SpeechLanguage) {
         // Android SpeechRecognizer uses system language
@@ -363,17 +354,6 @@ class AndroidTranscriptionService(
         // Android SpeechRecognizer doesn't support translation
         // This is only applicable to Whisper models in SherpaOnnxTranscriptionService
         _translateToEnglish.value = translate
-    }
-
-    fun switchSpeaker() {
-        val nextSpeakerId = "speaker_${speakers.size + 1}"
-        val newSpeaker = speakers.getOrPut(nextSpeakerId) {
-            Speaker(id = nextSpeakerId, label = "Speaker ${speakers.size + 1}")
-        }
-        _currentSpeaker.value = newSpeaker
-        scope.launch {
-            _events.emit(TranscriptionEvent.SpeakerChange(newSpeaker))
-        }
     }
 
     override fun release() {
