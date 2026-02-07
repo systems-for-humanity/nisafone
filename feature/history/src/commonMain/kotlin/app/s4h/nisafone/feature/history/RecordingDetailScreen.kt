@@ -33,8 +33,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.s4h.nisafone.core.domain.model.Recording
 import app.s4h.nisafone.core.transcription.Utterance
+import app.s4h.nisafone.history.generated.resources.Res
+import app.s4h.nisafone.history.generated.resources.back
+import app.s4h.nisafone.history.generated.resources.duration_format
+import app.s4h.nisafone.history.generated.resources.no_transcription_available
+import app.s4h.nisafone.history.generated.resources.segments_format
+import app.s4h.nisafone.history.generated.resources.share
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +59,7 @@ fun RecordingDetailScreen(
                     IconButton(onClick = onBackClick) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(Res.string.back)
                         )
                     }
                 },
@@ -60,7 +67,7 @@ fun RecordingDetailScreen(
                     IconButton(onClick = onShareClick) {
                         Icon(
                             imageVector = Icons.Default.Share,
-                            contentDescription = "Share"
+                            contentDescription = stringResource(Res.string.share)
                         )
                     }
                 },
@@ -93,7 +100,7 @@ fun RecordingDetailScreen(
                         .padding(32.dp)
                 ) {
                     Text(
-                        text = "No transcription available",
+                        text = stringResource(Res.string.no_transcription_available),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -140,13 +147,13 @@ private fun RecordingInfoHeader(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Duration: ${formatDuration(recording.durationMs)}",
+                    text = stringResource(Res.string.duration_format, formatDuration(recording.durationMs)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 recording.transcription?.let { transcription ->
                     Text(
-                        text = "${transcription.utterances.size} segments",
+                        text = stringResource(Res.string.segments_format, transcription.utterances.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

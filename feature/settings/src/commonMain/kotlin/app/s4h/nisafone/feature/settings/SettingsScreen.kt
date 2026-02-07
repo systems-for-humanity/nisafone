@@ -50,6 +50,34 @@ import androidx.compose.ui.unit.dp
 import app.s4h.nisafone.core.transcription.LanguageHint
 import app.s4h.nisafone.core.transcription.SpeechModel
 import app.s4h.nisafone.core.transcription.SpeechModelType
+import app.s4h.nisafone.settings.generated.resources.Res
+import app.s4h.nisafone.settings.generated.resources.about_app_name
+import app.s4h.nisafone.settings.generated.resources.about_powered_by
+import app.s4h.nisafone.settings.generated.resources.about_version
+import app.s4h.nisafone.settings.generated.resources.active_model
+import app.s4h.nisafone.settings.generated.resources.auto_email
+import app.s4h.nisafone.settings.generated.resources.auto_email_description
+import app.s4h.nisafone.settings.generated.resources.available_models
+import app.s4h.nisafone.settings.generated.resources.batch_transcription
+import app.s4h.nisafone.settings.generated.resources.delete
+import app.s4h.nisafone.settings.generated.resources.download
+import app.s4h.nisafone.settings.generated.resources.downloading_progress
+import app.s4h.nisafone.settings.generated.resources.email_address
+import app.s4h.nisafone.settings.generated.resources.email_placeholder
+import app.s4h.nisafone.settings.generated.resources.filter_all
+import app.s4h.nisafone.settings.generated.resources.language_hint
+import app.s4h.nisafone.settings.generated.resources.language_hint_description
+import app.s4h.nisafone.settings.generated.resources.multilingual
+import app.s4h.nisafone.settings.generated.resources.none_selected
+import app.s4h.nisafone.settings.generated.resources.realtime_transcription
+import app.s4h.nisafone.settings.generated.resources.selected
+import app.s4h.nisafone.settings.generated.resources.settings_title
+import app.s4h.nisafone.settings.generated.resources.storage_info
+import app.s4h.nisafone.settings.generated.resources.storage_used
+import app.s4h.nisafone.settings.generated.resources.translate_disabled_description
+import app.s4h.nisafone.settings.generated.resources.translate_enabled_description
+import app.s4h.nisafone.settings.generated.resources.translate_to_english
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 @Composable
@@ -84,7 +112,7 @@ fun SettingsScreen(
         ) {
             item {
                 Text(
-                    text = "Settings",
+                    text = stringResource(Res.string.settings_title),
                     style = MaterialTheme.typography.headlineMedium
                 )
             }
@@ -145,7 +173,7 @@ fun SettingsScreen(
             // Model list header
             item {
                 Text(
-                    text = "Available Models",
+                    text = stringResource(Res.string.available_models),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -196,12 +224,12 @@ private fun StorageInfoCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Storage Used",
+                    text = stringResource(Res.string.storage_used),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = "${totalStorageUsedMB}MB ($downloadedCount models downloaded)",
+                    text = stringResource(Res.string.storage_info, totalStorageUsedMB, downloadedCount),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -232,19 +260,23 @@ private fun SelectedModelCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Active Model",
+                    text = stringResource(Res.string.active_model),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 Text(
-                    text = selectedModel?.displayName ?: "None selected",
+                    text = selectedModel?.displayName ?: stringResource(Res.string.none_selected),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 if (selectedModel != null) {
                     Text(
-                        text = if (selectedModel.type.isStreaming) "Real-time transcription" else "Batch transcription",
+                        text = if (selectedModel.type.isStreaming) {
+                            stringResource(Res.string.realtime_transcription)
+                        } else {
+                            stringResource(Res.string.batch_transcription)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                     )
@@ -278,12 +310,12 @@ private fun LanguageHintCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Language Hint",
+                        text = stringResource(Res.string.language_hint),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
-                        text = "Help Whisper recognize the spoken language",
+                        text = stringResource(Res.string.language_hint_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                     )
@@ -328,15 +360,15 @@ private fun TranslateToEnglishCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Translate to English",
+                    text = stringResource(Res.string.translate_to_english),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = if (translateToEnglish) {
-                        "Speech will be translated to English"
+                        stringResource(Res.string.translate_enabled_description)
                     } else {
-                        "Speech will be transcribed in original language"
+                        stringResource(Res.string.translate_disabled_description)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -363,7 +395,7 @@ private fun ModelFilterChips(
             FilterChip(
                 selected = selectedFilter == null,
                 onClick = { onFilterSelected(null) },
-                label = { Text("All") }
+                label = { Text(stringResource(Res.string.filter_all)) }
             )
         }
         items(SpeechModelType.entries.toList()) { type ->
@@ -406,7 +438,7 @@ private fun ModelCard(
                 if (model.language.code == "multi") {
                     Icon(
                         imageVector = Icons.Default.Language,
-                        contentDescription = "Multilingual",
+                        contentDescription = stringResource(Res.string.multilingual),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
@@ -430,7 +462,7 @@ private fun ModelCard(
                             Spacer(modifier = Modifier.width(8.dp))
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
+                                contentDescription = stringResource(Res.string.selected),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -460,7 +492,7 @@ private fun ModelCard(
                         IconButton(onClick = onDelete) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete",
+                                contentDescription = stringResource(Res.string.delete),
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -469,7 +501,7 @@ private fun ModelCard(
                         IconButton(onClick = onDownload) {
                             Icon(
                                 imageVector = Icons.Default.CloudDownload,
-                                contentDescription = "Download",
+                                contentDescription = stringResource(Res.string.download),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -487,7 +519,7 @@ private fun ModelCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Downloading... ${(downloadProgress * 100).toInt()}%",
+                        text = stringResource(Res.string.downloading_progress, (downloadProgress * 100).toInt()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -523,12 +555,12 @@ private fun AutoEmailCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Auto-Email",
+                        text = stringResource(Res.string.auto_email),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Open email when recording stops",
+                        text = stringResource(Res.string.auto_email_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -545,8 +577,8 @@ private fun AutoEmailCard(
                     OutlinedTextField(
                         value = emailAddress,
                         onValueChange = onEmailAddressChanged,
-                        label = { Text("Email Address") },
-                        placeholder = { Text("recipient@example.com") },
+                        label = { Text(stringResource(Res.string.email_address)) },
+                        placeholder = { Text(stringResource(Res.string.email_placeholder)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -576,16 +608,16 @@ private fun AboutCard() {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "Nisafone",
+                    text = stringResource(Res.string.about_app_name),
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "Version 1.0.0",
+                    text = stringResource(Res.string.about_version),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Speech recognition powered by Sherpa-ONNX",
+                    text = stringResource(Res.string.about_powered_by),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

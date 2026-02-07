@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="storage_used">Storage Used</string>
+    <string name="storage_info">%1$dMB (%2$d models downloaded)</string>
+    <string name="active_model">Active Model</string>
+    <string name="none_selected">None selected</string>
+    <string name="realtime_transcription">Real-time transcription</string>
+    <string name="batch_transcription">Batch transcription</string>
+    <string name="language_hint">Language Hint</string>
+    <string name="language_hint_description">Help Whisper recognize the spoken language</string>
+    <string name="translate_to_english">Translate to English</string>
+    <string name="translate_enabled_description">Speech will be translated to English</string>
+    <string name="translate_disabled_description">Speech will be transcribed in original language</string>
+    <string name="filter_all">All</string>
+    <string name="available_models">Available Models</string>
+    <string name="selected">Selected</string>
+    <string name="multilingual">Multilingual</string>
+    <string name="delete">Delete</string>
+    <string name="download">Download</string>
+    <string name="downloading_progress">Downloading… %1$d%%</string>
+    <string name="auto_email">Auto-Email</string>
+    <string name="auto_email_description">Open email when recording stops</string>
+    <string name="email_address">Email Address</string>
+    <string name="email_placeholder">recipient@example.com</string>
+    <string name="about_app_name">Nisafone</string>
+    <string name="about_version">Version 1.0.0</string>
+    <string name="about_powered_by">Speech recognition powered by Sherpa-ONNX</string>
+</resources>

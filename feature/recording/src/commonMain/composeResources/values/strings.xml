@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recording_status">Recording</string>
+    <string name="tap_to_start">Tap the microphone to start recording</string>
+    <string name="listening">Listening…</string>
+    <string name="default_speaker_label">Speaker</string>
+    <string name="stop_recording">Stop recording</string>
+    <string name="start_recording">Start recording</string>
+    <string name="share_transcription">Share transcription</string>
+    <string name="select_microphone">Select Microphone</string>
+    <string name="select_microphone_dropdown">Select microphone</string>
+    <string name="select_title_prefix">Select title prefix</string>
+    <string name="add_new">Add new…</string>
+    <string name="add_title_prefix">Add Title Prefix</string>
+    <string name="prefix_label">Prefix</string>
+    <string name="add">Add</string>
+    <string name="cancel">Cancel</string>
+    <string name="share_title">Nisafone Transcription</string>
+</resources>

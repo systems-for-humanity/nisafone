@@ -60,6 +60,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.s4h.nisafone.core.audio.AudioDevice
 import app.s4h.nisafone.core.transcription.Utterance
+import app.s4h.nisafone.recording.generated.resources.Res
+import app.s4h.nisafone.recording.generated.resources.add
+import app.s4h.nisafone.recording.generated.resources.add_new
+import app.s4h.nisafone.recording.generated.resources.add_title_prefix
+import app.s4h.nisafone.recording.generated.resources.cancel
+import app.s4h.nisafone.recording.generated.resources.default_speaker_label
+import app.s4h.nisafone.recording.generated.resources.listening
+import app.s4h.nisafone.recording.generated.resources.prefix_label
+import app.s4h.nisafone.recording.generated.resources.recording_status
+import app.s4h.nisafone.recording.generated.resources.select_microphone
+import app.s4h.nisafone.recording.generated.resources.select_microphone_dropdown
+import app.s4h.nisafone.recording.generated.resources.select_title_prefix
+import app.s4h.nisafone.recording.generated.resources.share_transcription
+import app.s4h.nisafone.recording.generated.resources.start_recording
+import app.s4h.nisafone.recording.generated.resources.stop_recording
+import app.s4h.nisafone.recording.generated.resources.share_title
+import app.s4h.nisafone.recording.generated.resources.tap_to_start
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -164,10 +182,13 @@ fun RecordingScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Transcription display
+            val shareTitle = stringResource(Res.string.share_title)
+            val defaultSpeakerLabel = stringResource(Res.string.default_speaker_label)
             TranscriptionDisplay(
                 utterances = uiState.utterances,
                 partialText = uiState.partialText,
                 currentSpeaker = uiState.currentSpeaker?.label,
+                defaultSpeakerLabel = defaultSpeakerLabel,
                 isRecording = uiState.isRecording,
                 listState = listState,
                 modifier = Modifier
@@ -181,7 +202,7 @@ fun RecordingScreen(
             ActionButtons(
                 hasTranscription = uiState.utterances.isNotEmpty() || uiState.partialText.isNotBlank(),
                 isSharing = uiState.isSharing,
-                onShare = viewModel::shareTranscription,
+                onShare = { viewModel.shareTranscription(shareTitle, defaultSpeakerLabel) },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -241,7 +262,7 @@ private fun TimerDisplay(
         if (isRecording) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Recording",
+                text = stringResource(Res.string.recording_status),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.error
             )
@@ -284,6 +305,7 @@ private fun TranscriptionDisplay(
     utterances: List<Utterance>,
     partialText: String,
     currentSpeaker: String?,
+    defaultSpeakerLabel: String,
     isRecording: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState,
     modifier: Modifier = Modifier
@@ -300,7 +322,7 @@ private fun TranscriptionDisplay(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Tap the microphone to start recording",
+                    text = stringResource(Res.string.tap_to_start),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -313,7 +335,7 @@ private fun TranscriptionDisplay(
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "Listening...",
+                    text = stringResource(Res.string.listening),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -337,7 +359,7 @@ private fun TranscriptionDisplay(
                     item {
                         PartialTextItem(
                             text = partialText,
-                            speakerLabel = currentSpeaker ?: "Speaker",
+                            speakerLabel = currentSpeaker ?: defaultSpeakerLabel,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -408,7 +430,7 @@ private fun RecordingFab(
         ) {
             Icon(
                 imageVector = Icons.Default.Stop,
-                contentDescription = "Stop recording",
+                contentDescription = stringResource(Res.string.stop_recording),
                 tint = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.size(32.dp)
             )
@@ -422,7 +444,7 @@ private fun RecordingFab(
         ) {
             Icon(
                 imageVector = Icons.Default.Mic,
-                contentDescription = "Start recording",
+                contentDescription = stringResource(Res.string.start_recording),
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.size(32.dp)
             )
@@ -448,7 +470,7 @@ private fun ActionButtons(
             ) {
                 Icon(
                     imageVector = Icons.Default.Share,
-                    contentDescription = "Share transcription",
+                    contentDescription = stringResource(Res.string.share_transcription),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -479,12 +501,12 @@ private fun MicrophoneSelector(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = selectedDevice?.name ?: "Select Microphone",
+                text = selectedDevice?.name ?: stringResource(Res.string.select_microphone),
                 modifier = Modifier.weight(1f)
             )
             Icon(
                 imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = "Select microphone"
+                contentDescription = stringResource(Res.string.select_microphone_dropdown)
             )
         }
 
@@ -529,7 +551,7 @@ private fun TitlePrefixSelector(
             )
             Icon(
                 imageVector = Icons.Default.ArrowDropDown,
-                contentDescription = "Select title prefix"
+                contentDescription = stringResource(Res.string.select_title_prefix)
             )
         }
 
@@ -556,7 +578,7 @@ private fun TitlePrefixSelector(
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add new...")
+                        Text(stringResource(Res.string.add_new))
                     }
                 },
                 onClick = {
@@ -577,12 +599,12 @@ private fun AddPrefixDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Title Prefix") },
+        title = { Text(stringResource(Res.string.add_title_prefix)) },
         text = {
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text("Prefix") },
+                label = { Text(stringResource(Res.string.prefix_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -592,12 +614,12 @@ private fun AddPrefixDialog(
                 onClick = { onConfirm(text) },
                 enabled = text.isNotBlank()
             ) {
-                Text("Add")
+                Text(stringResource(Res.string.add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(Res.string.cancel))
             }
         }
     )

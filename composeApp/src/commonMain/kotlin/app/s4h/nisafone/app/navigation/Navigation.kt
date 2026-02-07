@@ -24,6 +24,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import app.s4h.nisafone.composeapp.generated.resources.Res
+import app.s4h.nisafone.composeapp.generated.resources.nav_history
+import app.s4h.nisafone.composeapp.generated.resources.nav_record
+import app.s4h.nisafone.composeapp.generated.resources.nav_settings
+import app.s4h.nisafone.composeapp.generated.resources.share_title
 import app.s4h.nisafone.core.domain.model.Recording
 import app.s4h.nisafone.core.sharing.ShareService
 import app.s4h.nisafone.feature.history.HistoryScreen
@@ -31,15 +36,17 @@ import app.s4h.nisafone.feature.history.RecordingDetailScreen
 import app.s4h.nisafone.feature.recording.RecordingScreen
 import app.s4h.nisafone.feature.settings.SettingsScreen
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
 enum class Screen(
-    val title: String,
+    val titleRes: StringResource,
     val icon: ImageVector
 ) {
-    Recording("Record", Icons.Default.Mic),
-    History("History", Icons.Default.History),
-    Settings("Settings", Icons.Default.Settings)
+    Recording(Res.string.nav_record, Icons.Default.Mic),
+    History(Res.string.nav_history, Icons.Default.History),
+    Settings(Res.string.nav_settings, Icons.Default.Settings)
 }
 
 @Composable
@@ -50,6 +57,7 @@ fun AppNavigation(
     var selectedRecording by remember { mutableStateOf<Recording?>(null) }
     val shareService: ShareService = koinInject()
     val scope = rememberCoroutineScope()
+    val shareTitle = stringResource(Res.string.share_title)
 
     // Handle back button - go back to Recording screen from History/Settings
     BackHandler(enabled = currentScreen != Screen.Recording) {
@@ -65,7 +73,7 @@ fun AppNavigation(
                 selectedRecording?.let { recording ->
                     val text = buildTranscriptionText(recording)
                     scope.launch {
-                        shareService.shareText(text, "Nisafone Transcription")
+                        shareService.shareText(text, shareTitle)
                     }
                 }
             },
@@ -78,14 +86,15 @@ fun AppNavigation(
         bottomBar = {
             NavigationBar {
                 Screen.entries.forEach { screen ->
+                    val title = stringResource(screen.titleRes)
                     NavigationBarItem(
                         icon = {
                             Icon(
                                 imageVector = screen.icon,
-                                contentDescription = screen.title
+                                contentDescription = title
                             )
                         },
-                        label = { Text(screen.title) },
+                        label = { Text(title) },
                         selected = currentScreen == screen,
                         onClick = { currentScreen = screen }
                     )

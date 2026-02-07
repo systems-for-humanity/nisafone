@@ -407,25 +407,25 @@ class RecordingViewModel(
         }
     }
 
-    fun shareTranscription() {
+    fun shareTranscription(shareTitle: String, defaultSpeakerLabel: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSharing = true) }
 
-            val text = buildTranscriptionText()
-            shareService.shareText(text, "Nisafone Transcription")
+            val text = buildTranscriptionText(defaultSpeakerLabel)
+            shareService.shareText(text, shareTitle)
 
             _uiState.update { it.copy(isSharing = false) }
         }
     }
 
-    private fun buildTranscriptionText(): String {
+    private fun buildTranscriptionText(defaultSpeakerLabel: String = "Speaker"): String {
         return buildString {
             _uiState.value.utterances.forEach { utterance ->
                 appendLine("[${utterance.speaker.label}]: ${utterance.text}")
                 appendLine()
             }
             if (_uiState.value.partialText.isNotBlank()) {
-                appendLine("[${_uiState.value.currentSpeaker?.label ?: "Speaker"}]: ${_uiState.value.partialText}...")
+                appendLine("[${_uiState.value.currentSpeaker?.label ?: defaultSpeakerLabel}]: ${_uiState.value.partialText}...")
             }
         }
     }

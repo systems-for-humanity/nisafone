@@ -38,8 +38,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.s4h.nisafone.core.domain.model.Recording
+import app.s4h.nisafone.history.generated.resources.Res
+import app.s4h.nisafone.history.generated.resources.delete
+import app.s4h.nisafone.history.generated.resources.no_recordings_yet
+import app.s4h.nisafone.history.generated.resources.share
+import app.s4h.nisafone.history.generated.resources.start_recording_hint
+import app.s4h.nisafone.history.generated.resources.toggle_favorite
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -103,13 +110,13 @@ private fun EmptyHistoryMessage(modifier: Modifier = Modifier) {
         modifier = modifier.padding(32.dp)
     ) {
         Text(
-            text = "No recordings yet",
+            text = stringResource(Res.string.no_recordings_yet),
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Start a recording to see it here",
+            text = stringResource(Res.string.start_recording_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -212,7 +219,7 @@ private fun RecordingItem(
                         } else {
                             Icons.Default.FavoriteBorder
                         },
-                        contentDescription = "Toggle favorite",
+                        contentDescription = stringResource(Res.string.toggle_favorite),
                         tint = if (recording.isFavorite) {
                             MaterialTheme.colorScheme.error
                         } else {
@@ -223,14 +230,14 @@ private fun RecordingItem(
                 IconButton(onClick = onShareClick) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share",
+                        contentDescription = stringResource(Res.string.share),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = onDeleteClick) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
+                        contentDescription = stringResource(Res.string.delete),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
