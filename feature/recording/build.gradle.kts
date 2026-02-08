@@ -49,6 +49,11 @@ kotlin {
             implementation(libs.kermit)
         }
 
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
         androidMain.dependencies {
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.lifecycle.viewmodel)
