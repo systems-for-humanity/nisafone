@@ -181,9 +181,11 @@ class SherpaOnnxTranscriptionService(
                 }
             }
 
-            _state.value = TranscriptionState.READY
-            Log.d(TAG, "Sherpa-ONNX Whisper transcription service initialized")
-            logger.d { "Transcription service initialized" }
+            if (recognizer != null) {
+                _state.value = TranscriptionState.READY
+                Log.d(TAG, "Sherpa-ONNX Whisper transcription service initialized")
+                logger.d { "Transcription service initialized" }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize: ${e.message}", e)
             logger.e(e) { "Failed to initialize Sherpa-ONNX Whisper" }
@@ -358,8 +360,9 @@ class SherpaOnnxTranscriptionService(
     override suspend fun startTranscription() {
         Log.d(TAG, "startTranscription() called, current state: ${_state.value}")
 
-        if (_state.value != TranscriptionState.READY && _state.value != TranscriptionState.IDLE) {
+        if (_state.value != TranscriptionState.READY) {
             Log.w(TAG, "Cannot start transcription in state: ${_state.value}")
+            _events.emit(TranscriptionEvent.Error("Model still loading. Please wait."))
             return
         }
 

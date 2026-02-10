@@ -438,14 +438,16 @@ private fun RecordingFab(
     } else {
         // Start button
         FloatingActionButton(
-            onClick = onStart,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            onClick = { if (canStart) onStart() },
+            containerColor = if (canStart) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceVariant,
             modifier = modifier.size(72.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Mic,
                 contentDescription = stringResource(Res.string.start_recording),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = if (canStart) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(32.dp)
             )
         }

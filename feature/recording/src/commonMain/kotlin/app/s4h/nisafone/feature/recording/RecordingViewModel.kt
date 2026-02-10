@@ -53,7 +53,7 @@ data class RecordingUiState(
 
     val canStart: Boolean
         get() = recordingState == RecordingState.IDLE &&
-                (transcriptionState == TranscriptionState.READY || transcriptionState == TranscriptionState.IDLE)
+                transcriptionState == TranscriptionState.READY
 
     val formattedTime: String
         get() {
