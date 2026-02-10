@@ -2,6 +2,7 @@ package app.s4h.nisafone.android
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -40,13 +41,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkAndRequestPermissions() {
-        val permissions = arrayOf(
+        val permissions = mutableListOf(
             Manifest.permission.RECORD_AUDIO
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
 
         val permissionsToRequest = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }.toTypedArray()
+        }.toTypedArray<String>()
 
         if (permissionsToRequest.isNotEmpty()) {
             requestPermissionLauncher.launch(permissionsToRequest)

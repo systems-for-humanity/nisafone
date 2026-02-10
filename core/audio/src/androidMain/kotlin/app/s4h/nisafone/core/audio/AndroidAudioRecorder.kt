@@ -1,13 +1,18 @@
 package app.s4h.nisafone.core.audio
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +40,7 @@ class AndroidAudioRecorder(
     private var recordingJob: Job? = null
     private var audioManager: AudioManager? = null
     private var selectedDeviceInfo: AudioDeviceInfo? = null
+    private var useBluetooth = false
 
     private val _state = MutableStateFlow(RecordingState.IDLE)
     override val state: StateFlow<RecordingState> = _state.asStateFlow()
@@ -64,11 +70,33 @@ class AndroidAudioRecorder(
         }
     }
 
+    private val bluetoothReceiver = object : BroadcastReceiver() {
+        override fun onReceive(ctx: Context?, intent: Intent?) {
+            when (intent?.action) {
+                BluetoothDevice.ACTION_ACL_CONNECTED,
+                BluetoothDevice.ACTION_ACL_DISCONNECTED,
+                AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED -> {
+                    enumerateDevices()
+                }
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
     override suspend fun initialize() {
         logger.d { "Initializing audio recorder" }
         if (context != null) {
             audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             audioManager?.registerAudioDeviceCallback(deviceCallback, null)
+
+            // Listen for BT connection changes
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+                addAction(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
+            }
+            context.registerReceiver(bluetoothReceiver, filter)
+
             enumerateDevices()
         } else {
             val defaultDevice = AudioDevice(
@@ -81,11 +109,24 @@ class AndroidAudioRecorder(
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun enumerateDevices() {
         val manager = audioManager ?: return
         val inputDevices = manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
 
-        val devices = inputDevices.map { info ->
+        // On API 31+, also discover Bluetooth devices via communication device API
+        val allDeviceInfos = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val commDevices = manager.availableCommunicationDevices
+            val deviceMap = linkedMapOf<Int, AudioDeviceInfo>()
+            inputDevices.forEach { deviceMap[it.id] = it }
+            // Only add communication devices that are audio sources (skip sink-only)
+            commDevices.filter { it.isSource }.forEach { deviceMap.putIfAbsent(it.id, it) }
+            deviceMap.values.toList()
+        } else {
+            inputDevices.toList()
+        }
+
+        val devices = allDeviceInfos.map { info ->
             AudioDevice(
                 id = info.id.toString(),
                 name = buildDeviceName(info),
@@ -107,7 +148,7 @@ class AndroidAudioRecorder(
         val currentId = _selectedDevice.value?.id
         if (currentId == null || devices.none { it.id == currentId }) {
             _selectedDevice.value = devices.first()
-            selectedDeviceInfo = inputDevices.first()
+            selectedDeviceInfo = allDeviceInfos.firstOrNull()
         }
     }
 
@@ -116,12 +157,13 @@ class AndroidAudioRecorder(
             AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Built-in Mic"
             AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth"
             AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth A2DP"
+            AudioDeviceInfo.TYPE_BLE_HEADSET -> "Bluetooth LE"
             AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Wired Headset"
             AudioDeviceInfo.TYPE_USB_DEVICE -> "USB Device"
             AudioDeviceInfo.TYPE_USB_ACCESSORY -> "USB Accessory"
             AudioDeviceInfo.TYPE_USB_HEADSET -> "USB Headset"
             AudioDeviceInfo.TYPE_TELEPHONY -> "Telephony"
-            else -> "Microphone"
+            else -> "Microphone " + info.type
         }
         val productName = info.productName?.toString()?.takeIf { it.isNotBlank() && it != "0" }
         return if (productName != null && productName != typeName) {
@@ -138,8 +180,13 @@ class AndroidAudioRecorder(
             return
         }
 
-        logger.d { "Starting recording" }
+        logger.d { "Starting recording (bluetooth=$useBluetooth)" }
 
+        val audioSource = if (useBluetooth) {
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION
+        } else {
+            MediaRecorder.AudioSource.MIC
+        }
         val bufferSize = AudioRecord.getMinBufferSize(
             SAMPLE_RATE,
             CHANNEL_CONFIG,
@@ -147,7 +194,7 @@ class AndroidAudioRecorder(
         ).coerceAtLeast(4096)
 
         audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
+            audioSource,
             SAMPLE_RATE,
             CHANNEL_CONFIG,
             AUDIO_FORMAT,
@@ -202,25 +249,66 @@ class AndroidAudioRecorder(
         logger.d { "Selecting device: ${device.name}" }
         _selectedDevice.value = device
 
-        // Find the matching AudioDeviceInfo
-        val manager = audioManager
-        if (manager != null) {
-            val inputDevices = manager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-            selectedDeviceInfo = inputDevices.firstOrNull { it.id.toString() == device.id }
+        val manager = audioManager ?: return
 
-            // If currently recording, apply the device change immediately
-            audioRecord?.let { record ->
-                selectedDeviceInfo?.let { info ->
-                    record.setPreferredDevice(info)
-                    logger.d { "Applied preferred device change during recording: ${info.id}" }
-                }
+        // Clean up any existing BT state
+        cleanupBluetooth(manager)
+
+        // Check if this is a Bluetooth device
+        val allDevices = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val deviceMap = linkedMapOf<Int, AudioDeviceInfo>()
+            manager.getDevices(AudioManager.GET_DEVICES_INPUTS).forEach { deviceMap[it.id] = it }
+            manager.availableCommunicationDevices.filter { it.isSource }.forEach { deviceMap.putIfAbsent(it.id, it) }
+            deviceMap.values.toList()
+        } else {
+            manager.getDevices(AudioManager.GET_DEVICES_INPUTS).toList()
+        }
+        val deviceInfo = allDevices.firstOrNull { it.id.toString() == device.id }
+        selectedDeviceInfo = deviceInfo
+
+        // For Bluetooth SCO devices, set up communication mode and start SCO
+        if (deviceInfo != null && (deviceInfo.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    deviceInfo.type == AudioDeviceInfo.TYPE_BLE_HEADSET)) {
+            useBluetooth = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                manager.setCommunicationDevice(deviceInfo)
+                logger.d { "Set communication device for Bluetooth: ${deviceInfo.id}" }
             }
+            @Suppress("DEPRECATION")
+            manager.mode = AudioManager.MODE_IN_COMMUNICATION
+            @Suppress("DEPRECATION")
+            manager.startBluetoothSco()
+            logger.d { "Started Bluetooth SCO" }
+        } else {
+            useBluetooth = false
+        }
+
+        // If currently recording, apply the device change immediately
+        audioRecord?.let { record ->
+            selectedDeviceInfo?.let { info ->
+                record.setPreferredDevice(info)
+                logger.d { "Applied preferred device change during recording: ${info.id}" }
+            }
+        }
+    }
+
+    private fun cleanupBluetooth(manager: AudioManager) {
+        useBluetooth = false
+        @Suppress("DEPRECATION")
+        manager.stopBluetoothSco()
+        manager.mode = AudioManager.MODE_NORMAL
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            manager.clearCommunicationDevice()
         }
     }
 
     override fun release() {
         logger.d { "Releasing audio recorder" }
+        audioManager?.let { cleanupBluetooth(it) }
         audioManager?.unregisterAudioDeviceCallback(deviceCallback)
+        try {
+            context?.unregisterReceiver(bluetoothReceiver)
+        } catch (_: Exception) { }
         scope.cancel()
         audioRecord?.release()
         audioRecord = null

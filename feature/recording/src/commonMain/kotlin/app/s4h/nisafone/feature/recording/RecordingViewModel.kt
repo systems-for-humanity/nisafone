@@ -436,7 +436,12 @@ class RecordingViewModel(
 
     fun selectAudioDevice(device: AudioDevice) {
         viewModelScope.launch {
-            audioRecorder.selectDevice(device)
+            try {
+                audioRecorder.selectDevice(device)
+            } catch (e: Exception) {
+                logger.e(e) { "Failed to select audio device" }
+                _uiState.update { it.copy(error = e.message ?: "Failed to select device") }
+            }
         }
     }
 

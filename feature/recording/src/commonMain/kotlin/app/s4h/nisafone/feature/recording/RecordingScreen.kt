@@ -7,6 +7,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -496,14 +498,17 @@ private fun MicrophoneSelector(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth()
         ) {
+            val selectedIsBluetooth = selectedDevice?.name?.startsWith("Bluetooth") == true
             Icon(
                 imageVector = Icons.Default.Mic,
                 contentDescription = null,
+                tint = if (selectedIsBluetooth) Color(0xFF2196F3) else LocalContentColor.current,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = selectedDevice?.name ?: stringResource(Res.string.select_microphone),
+                color = if (selectedIsBluetooth) Color(0xFF2196F3) else Color.Unspecified,
                 modifier = Modifier.weight(1f)
             )
             Icon(
@@ -518,8 +523,14 @@ private fun MicrophoneSelector(
             modifier = Modifier.fillMaxWidth(0.9f)
         ) {
             devices.forEach { device ->
+                val isBluetooth = device.name.startsWith("Bluetooth")
                 DropdownMenuItem(
-                    text = { Text(device.name) },
+                    text = {
+                        Text(
+                            text = device.name,
+                            color = if (isBluetooth) Color(0xFF2196F3) else Color.Unspecified
+                        )
+                    },
                     onClick = {
                         onDeviceSelected(device)
                         expanded = false

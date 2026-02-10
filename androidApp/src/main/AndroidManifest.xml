@@ -14,6 +14,12 @@
     <!-- Post notifications for recording status -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Bluetooth audio devices (required on Android 12+) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Required for Bluetooth SCO audio routing -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <application
         android:name=".NisafoneApplication"
         android:allowBackup="true"
