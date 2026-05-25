@@ -48,7 +48,8 @@ val commonModule = module {
             saveRecordingUseCase = get(),
             updateRecordingUseCase = get(),
             titlePrefixRepository = get(),
-            emailSettingsRepository = get()
+            emailSettingsRepository = get(),
+            autoStartScheduleTimer = get()
         )
     }
 

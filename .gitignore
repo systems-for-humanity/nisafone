@@ -9,6 +9,7 @@ build/
 .vscode/
 
 # Kotlin
+.kotlin/
 *.class
 *.jar
 *.war

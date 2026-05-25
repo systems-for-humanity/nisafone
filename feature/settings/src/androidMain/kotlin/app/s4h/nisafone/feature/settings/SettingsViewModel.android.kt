@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlin.random.Random
 
 class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface {
 
@@ -34,6 +35,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
         observeLanguageHint()
         observeTranslateSetting()
         observeAutoShareSettings()
+        observeAutoStartScheduleSettings()
     }
 
     private fun observeDownloads() {
@@ -74,6 +76,19 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
         viewModelScope.launch {
             emailSettingsRepository.emailAddress.collect { address ->
                 _uiState.update { it.copy(autoEmailAddress = address) }
+            }
+        }
+    }
+
+    private fun observeAutoStartScheduleSettings() {
+        viewModelScope.launch {
+            emailSettingsRepository.autoStartScheduleEnabled.collect { enabled ->
+                _uiState.update { it.copy(autoStartScheduleEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            emailSettingsRepository.autoStartSchedules.collect { schedules ->
+                _uiState.update { it.copy(autoStartSchedules = schedules) }
             }
         }
     }
@@ -213,6 +228,28 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
 
     override fun setAutoEmailAddress(address: String) {
         emailSettingsRepository.setEmailAddress(address)
+    }
+
+    override fun setAutoStartScheduleEnabled(enabled: Boolean) {
+        emailSettingsRepository.setAutoStartScheduleEnabled(enabled)
+    }
+
+    override fun addAutoStartSchedule() {
+        val newScheduleId = "schedule-${Random.nextLong(1_000_000_000L, 9_999_999_999L)}"
+        val current = emailSettingsRepository.autoStartSchedules.value
+        emailSettingsRepository.setAutoStartSchedules(current + AutoStartSchedule.default(newScheduleId))
+    }
+
+    override fun updateAutoStartSchedule(schedule: AutoStartSchedule) {
+        val updated = emailSettingsRepository.autoStartSchedules.value.map {
+            if (it.id == schedule.id) schedule.normalized() else it
+        }
+        emailSettingsRepository.setAutoStartSchedules(updated)
+    }
+
+    override fun removeAutoStartSchedule(scheduleId: String) {
+        val updated = emailSettingsRepository.autoStartSchedules.value.filterNot { it.id == scheduleId }
+        emailSettingsRepository.setAutoStartSchedules(updated)
     }
 
     override fun clearError() {

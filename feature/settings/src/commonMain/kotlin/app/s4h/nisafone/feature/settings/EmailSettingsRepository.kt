@@ -8,7 +8,11 @@ import kotlinx.coroutines.flow.StateFlow
 interface EmailSettingsRepository {
     val autoEmailEnabled: StateFlow<Boolean>
     val emailAddress: StateFlow<String>
+    val autoStartScheduleEnabled: StateFlow<Boolean>
+    val autoStartSchedules: StateFlow<List<AutoStartSchedule>>
 
     fun setAutoEmailEnabled(enabled: Boolean)
     fun setEmailAddress(address: String)
+    fun setAutoStartScheduleEnabled(enabled: Boolean)
+    fun setAutoStartSchedules(schedules: List<AutoStartSchedule>)
 }

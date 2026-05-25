@@ -11,6 +11,7 @@ import app.s4h.nisafone.core.domain.usecase.SaveRecordingUseCase
 import app.s4h.nisafone.core.domain.usecase.UpdateRecordingUseCase
 import app.s4h.nisafone.core.sharing.ShareResult
 import app.s4h.nisafone.core.sharing.ShareService
+import app.s4h.nisafone.feature.settings.AutoStartSchedule
 import app.s4h.nisafone.feature.settings.EmailSettingsRepository
 import app.s4h.nisafone.core.transcription.Speaker
 import app.s4h.nisafone.core.transcription.SpeechLanguage
@@ -19,12 +20,22 @@ import app.s4h.nisafone.core.transcription.TranscriptionResult
 import app.s4h.nisafone.core.transcription.TranscriptionService
 import app.s4h.nisafone.core.transcription.TranscriptionState
 import app.s4h.nisafone.core.transcription.Utterance
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DatePeriod
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -75,10 +86,16 @@ class RecordingViewModel(
     private val saveRecordingUseCase: SaveRecordingUseCase,
     private val updateRecordingUseCase: UpdateRecordingUseCase,
     private val titlePrefixRepository: TitlePrefixRepository,
-    private val emailSettingsRepository: EmailSettingsRepository
+    private val emailSettingsRepository: EmailSettingsRepository,
+    private val autoStartScheduleTimer: AutoStartScheduleTimer,
+    private val enableAutoStartScheduleMonitor: Boolean = true
 ) : ViewModel() {
 
     private val logger = Logger.withTag("RecordingViewModel")
+
+    private companion object {
+        const val AUTO_START_RETRY_DELAY_MS = 5_000L
+    }
 
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
@@ -86,9 +103,21 @@ class RecordingViewModel(
     private var startTimeMs: Long = 0
     private val collectedUtterances = mutableListOf<Utterance>()
     private var isInitialized = false
+    private var isInitializing = false
     private var currentRecordingId: String? = null
 
-    private var audioStreamJob: kotlinx.coroutines.Job? = null
+    private var audioStreamJob: Job? = null
+    private var autoStartScheduleJob: Job? = null
+    private var autoStopRecordingJob: Job? = null
+    private val triggeredScheduleKeys = mutableSetOf<String>()
+    private var scheduleKeyDate: LocalDate? = null
+
+    private data class ScheduledAutoStartTrigger(
+        val schedule: AutoStartSchedule,
+        val triggerAtEpochMillis: Long,
+        val date: LocalDate,
+        val key: String
+    )
 
     init {
         observeAudioState()
@@ -97,6 +126,9 @@ class RecordingViewModel(
         observeTranscriptionEvents()
         observeLanguage()
         observeTitlePrefixes()
+        if (enableAutoStartScheduleMonitor) {
+            observeAutoStartSchedule()
+        }
     }
 
     private fun observeAudioState() {
@@ -187,6 +219,172 @@ class RecordingViewModel(
         }
     }
 
+    private fun observeAutoStartSchedule() {
+        autoStartScheduleJob = viewModelScope.launch {
+            combine(
+                emailSettingsRepository.autoStartScheduleEnabled,
+                emailSettingsRepository.autoStartSchedules
+            ) { enabled, schedules ->
+                enabled to schedules
+            }.collect { (enabled, schedules) ->
+                scheduleNextAutoStart(enabled, schedules)
+            }
+        }
+    }
+
+    private fun scheduleNextAutoStart(
+        enabled: Boolean = emailSettingsRepository.autoStartScheduleEnabled.value,
+        schedules: List<AutoStartSchedule> = emailSettingsRepository.autoStartSchedules.value
+    ) {
+        autoStartScheduleTimer.cancel()
+
+        if (!enabled) {
+            return
+        }
+
+        val trigger = findNextAutoStartTrigger(schedules) ?: return
+        logger.d {
+            "Scheduling auto-start id=${trigger.schedule.id}, time=${trigger.schedule.time}, triggerAt=${trigger.triggerAtEpochMillis}"
+        }
+        autoStartScheduleTimer.schedule(trigger.triggerAtEpochMillis) {
+            viewModelScope.launch {
+                handleScheduledAutoStart(trigger)
+            }
+        }
+    }
+
+    private fun handleScheduledAutoStart(trigger: ScheduledAutoStartTrigger) {
+        if (!emailSettingsRepository.autoStartScheduleEnabled.value) {
+            scheduleNextAutoStart()
+            return
+        }
+
+        val currentSchedule = emailSettingsRepository.autoStartSchedules.value
+            .firstOrNull { it.id == trigger.schedule.id }
+            ?.normalized()
+
+        if (currentSchedule == null || currentSchedule != trigger.schedule.normalized()) {
+            scheduleNextAutoStart()
+            return
+        }
+
+        resetTriggeredScheduleKeysIfNeeded(trigger.date)
+        if (trigger.key in triggeredScheduleKeys) {
+            scheduleNextAutoStart()
+            return
+        }
+
+        if (_uiState.value.isRecording) {
+            triggeredScheduleKeys.add(trigger.key)
+            scheduleNextAutoStart()
+            return
+        }
+
+        if (!_uiState.value.canStart) {
+            if (_uiState.value.transcriptionState == TranscriptionState.IDLE ||
+                _uiState.value.transcriptionState == TranscriptionState.ERROR
+            ) {
+                initialize()
+            }
+            scheduleAutoStartRetry(trigger)
+            return
+        }
+
+        triggeredScheduleKeys.add(trigger.key)
+        logger.d {
+            "Starting scheduled recording id=${currentSchedule.id}, days=${currentSchedule.daysOfWeek}, time=${currentSchedule.time}, duration=${currentSchedule.durationMinutes}m"
+        }
+        startRecordingInternal(currentSchedule.durationMinutes)
+        scheduleNextAutoStart()
+    }
+
+    private fun scheduleAutoStartRetry(trigger: ScheduledAutoStartTrigger) {
+        val retryAtEpochMillis = Clock.System.now().toEpochMilliseconds() + AUTO_START_RETRY_DELAY_MS
+        autoStartScheduleTimer.schedule(retryAtEpochMillis) {
+            viewModelScope.launch {
+                handleScheduledAutoStart(trigger)
+            }
+        }
+    }
+
+    private fun findNextAutoStartTrigger(
+        schedules: List<AutoStartSchedule>
+    ): ScheduledAutoStartTrigger? {
+        val nowInstant = Clock.System.now()
+        val nowEpochMillis = nowInstant.toEpochMilliseconds()
+        val timeZone = TimeZone.currentSystemDefault()
+        val now = nowInstant.toLocalDateTime(timeZone)
+
+        return schedules.mapNotNull { schedule ->
+            val parsed = parseScheduledTime(schedule.time) ?: return@mapNotNull null
+            if (schedule.durationMinutes <= 0) return@mapNotNull null
+            val normalized = schedule.normalized()
+
+            (0..7).mapNotNull { dayOffset ->
+                val date = now.date.plus(DatePeriod(days = dayOffset))
+                if (dayOfWeekToNumber(date.dayOfWeek) !in normalized.daysOfWeek) {
+                    return@mapNotNull null
+                }
+
+                val triggerTime = LocalDateTime(
+                    year = date.year,
+                    monthNumber = date.monthNumber,
+                    dayOfMonth = date.dayOfMonth,
+                    hour = parsed.first,
+                    minute = parsed.second
+                )
+                val triggerAtEpochMillis = triggerTime.toInstant(timeZone).toEpochMilliseconds()
+                if (triggerAtEpochMillis <= nowEpochMillis) {
+                    return@mapNotNull null
+                }
+
+                ScheduledAutoStartTrigger(
+                    schedule = normalized,
+                    triggerAtEpochMillis = triggerAtEpochMillis,
+                    date = date,
+                    key = autoStartScheduleKey(date, normalized.id, parsed)
+                )
+            }.minByOrNull { it.triggerAtEpochMillis }
+        }.minByOrNull { it.triggerAtEpochMillis }
+    }
+
+    private fun autoStartScheduleKey(
+        date: LocalDate,
+        scheduleId: String,
+        parsedTime: Pair<Int, Int>
+    ): String {
+        return "$date-$scheduleId-${parsedTime.first}:${parsedTime.second}"
+    }
+
+    private fun resetTriggeredScheduleKeysIfNeeded(date: LocalDate) {
+        if (scheduleKeyDate != date) {
+            scheduleKeyDate = date
+            triggeredScheduleKeys.clear()
+        }
+    }
+
+    private fun parseScheduledTime(time: String): Pair<Int, Int>? {
+        val parts = time.split(":")
+        if (parts.size != 2) return null
+        val hour = parts[0].toIntOrNull() ?: return null
+        val minute = parts[1].toIntOrNull() ?: return null
+        if (parts[0].length != 2 || parts[1].length != 2) return null
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return hour to minute
+    }
+
+    private fun dayOfWeekToNumber(dayOfWeek: DayOfWeek): Int {
+        return when (dayOfWeek) {
+            DayOfWeek.MONDAY -> 1
+            DayOfWeek.TUESDAY -> 2
+            DayOfWeek.WEDNESDAY -> 3
+            DayOfWeek.THURSDAY -> 4
+            DayOfWeek.FRIDAY -> 5
+            DayOfWeek.SATURDAY -> 6
+            DayOfWeek.SUNDAY -> 7
+        }
+    }
+
     private suspend fun saveCurrentTranscription() {
         val recordingId = currentRecordingId ?: return
         val state = _uiState.value
@@ -241,11 +439,16 @@ class RecordingViewModel(
         val transcriptionState = transcriptionService.state.value
         val needsReinit = transcriptionState == TranscriptionState.ERROR || transcriptionState == TranscriptionState.IDLE
 
+        if (isInitializing) {
+            logger.d { "initialize() called while initialization is already in progress, skipping" }
+            return
+        }
         if (isInitialized && !needsReinit) {
             logger.d { "initialize() called but already initialized, skipping" }
             return
         }
         logger.d { "initialize() called (reinit=$needsReinit, state=$transcriptionState)" }
+        isInitializing = true
         viewModelScope.launch {
             try {
                 logger.d { "Initializing audioRecorder..." }
@@ -257,15 +460,25 @@ class RecordingViewModel(
             } catch (e: Exception) {
                 logger.e(e) { "Failed to initialize" }
                 _uiState.update { it.copy(error = "Failed to initialize: ${e.message}") }
+            } finally {
+                isInitializing = false
             }
         }
     }
 
     @OptIn(ExperimentalUuidApi::class)
     fun startRecording() {
+        startRecordingInternal(autoStopAfterMinutes = null)
+    }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun startRecordingInternal(autoStopAfterMinutes: Int?) {
         logger.d { "startRecording() called, canStart=${_uiState.value.canStart}" }
         viewModelScope.launch {
             try {
+                autoStopRecordingJob?.cancel()
+                autoStopRecordingJob = null
+
                 collectedUtterances.clear()
                 _uiState.update {
                     it.copy(
@@ -313,9 +526,27 @@ class RecordingViewModel(
 
                 // Start elapsed time tracking
                 startElapsedTimeUpdates()
+                scheduleAutoStopIfNeeded(autoStopAfterMinutes)
             } catch (e: Exception) {
                 logger.e(e) { "Failed to start recording" }
                 _uiState.update { it.copy(error = "Failed to start: ${e.message}") }
+            }
+        }
+    }
+
+    private fun scheduleAutoStopIfNeeded(autoStopAfterMinutes: Int?) {
+        if (autoStopAfterMinutes == null || autoStopAfterMinutes <= 0) {
+            autoStopRecordingJob?.cancel()
+            autoStopRecordingJob = null
+            return
+        }
+
+        val targetRecordingId = currentRecordingId ?: return
+        autoStopRecordingJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(autoStopAfterMinutes * 60_000L)
+            if (currentRecordingId == targetRecordingId && _uiState.value.isRecording) {
+                logger.d { "Auto-stopping scheduled recording after $autoStopAfterMinutes minutes" }
+                stopRecording()
             }
         }
     }
@@ -334,6 +565,9 @@ class RecordingViewModel(
         logger.d { "stopRecording() called, isRecording=${_uiState.value.isRecording}" }
         viewModelScope.launch {
             try {
+                autoStopRecordingJob?.cancel()
+                autoStopRecordingJob = null
+
                 // Stop audio recorder first — this drains any remaining buffered
                 // audio (important for Bluetooth SCO which has extra latency)
                 if (!transcriptionService.handlesAudioInternally) {
@@ -477,6 +711,9 @@ class RecordingViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        autoStartScheduleJob?.cancel()
+        autoStartScheduleTimer.cancel()
+        autoStopRecordingJob?.cancel()
         audioRecorder.release()
         transcriptionService.release()
     }

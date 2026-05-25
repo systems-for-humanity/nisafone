@@ -59,7 +59,9 @@ class RecordingViewModelTest {
             saveRecordingUseCase = SaveRecordingUseCase(FakeRecordingRepository()),
             updateRecordingUseCase = UpdateRecordingUseCase(FakeRecordingRepository()),
             titlePrefixRepository = FakeTitlePrefixRepository(),
-            emailSettingsRepository = FakeEmailSettingsRepository()
+            emailSettingsRepository = FakeEmailSettingsRepository(),
+            autoStartScheduleTimer = FakeAutoStartScheduleTimer(),
+            enableAutoStartScheduleMonitor = false
         )
     }
 
@@ -245,7 +247,16 @@ private class FakeTitlePrefixRepository : TitlePrefixRepository {
 private class FakeEmailSettingsRepository : EmailSettingsRepository {
     override val autoEmailEnabled = MutableStateFlow(false)
     override val emailAddress = MutableStateFlow("")
+    override val autoStartScheduleEnabled = MutableStateFlow(false)
+    override val autoStartSchedules = MutableStateFlow(emptyList<app.s4h.nisafone.feature.settings.AutoStartSchedule>())
 
     override fun setAutoEmailEnabled(enabled: Boolean) {}
     override fun setEmailAddress(address: String) {}
+    override fun setAutoStartScheduleEnabled(enabled: Boolean) {}
+    override fun setAutoStartSchedules(schedules: List<app.s4h.nisafone.feature.settings.AutoStartSchedule>) {}
+}
+
+private class FakeAutoStartScheduleTimer : AutoStartScheduleTimer {
+    override fun schedule(triggerAtEpochMillis: Long, onTrigger: () -> Unit) {}
+    override fun cancel() {}
 }

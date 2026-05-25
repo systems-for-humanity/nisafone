@@ -7,6 +7,8 @@ import app.s4h.nisafone.core.sharing.ShareService
 import app.s4h.nisafone.core.sharing.createShareService
 import app.s4h.nisafone.core.transcription.TranscriptionService
 import app.s4h.nisafone.core.transcription.createTranscriptionService
+import app.s4h.nisafone.feature.recording.AutoStartScheduleTimer
+import app.s4h.nisafone.feature.recording.IosAutoStartScheduleTimer
 import app.s4h.nisafone.feature.recording.IosTitlePrefixRepository
 import app.s4h.nisafone.feature.recording.TitlePrefixRepository
 import app.s4h.nisafone.feature.settings.EmailSettingsRepository
@@ -23,6 +25,7 @@ val iosModule = module {
 
     // Title prefix repository
     single<TitlePrefixRepository> { IosTitlePrefixRepository() }
+    single<AutoStartScheduleTimer> { IosAutoStartScheduleTimer() }
 
     // Email settings repository
     single<EmailSettingsRepository> { IosEmailSettingsRepository() }

@@ -15,11 +15,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Translate
@@ -61,6 +63,8 @@ import app.s4h.nisafone.settings.generated.resources.about_version
 import app.s4h.nisafone.settings.generated.resources.active_model
 import app.s4h.nisafone.settings.generated.resources.auto_email
 import app.s4h.nisafone.settings.generated.resources.auto_email_description
+import app.s4h.nisafone.settings.generated.resources.auto_start_schedule
+import app.s4h.nisafone.settings.generated.resources.auto_start_schedule_description
 import app.s4h.nisafone.settings.generated.resources.available_models
 import app.s4h.nisafone.settings.generated.resources.batch_transcription
 import app.s4h.nisafone.settings.generated.resources.delete
@@ -74,6 +78,15 @@ import app.s4h.nisafone.settings.generated.resources.language_hint_description
 import app.s4h.nisafone.settings.generated.resources.multilingual
 import app.s4h.nisafone.settings.generated.resources.none_selected
 import app.s4h.nisafone.settings.generated.resources.realtime_transcription
+import app.s4h.nisafone.settings.generated.resources.add_schedule
+import app.s4h.nisafone.settings.generated.resources.schedule_days
+import app.s4h.nisafone.settings.generated.resources.schedule_duration
+import app.s4h.nisafone.settings.generated.resources.schedule_duration_hint
+import app.s4h.nisafone.settings.generated.resources.schedule_duration_placeholder
+import app.s4h.nisafone.settings.generated.resources.schedule_entry
+import app.s4h.nisafone.settings.generated.resources.schedule_time
+import app.s4h.nisafone.settings.generated.resources.schedule_time_format_hint
+import app.s4h.nisafone.settings.generated.resources.schedule_time_placeholder
 import app.s4h.nisafone.settings.generated.resources.selected
 import app.s4h.nisafone.settings.generated.resources.settings_title
 import app.s4h.nisafone.settings.generated.resources.storage_info
@@ -81,6 +94,13 @@ import app.s4h.nisafone.settings.generated.resources.storage_used
 import app.s4h.nisafone.settings.generated.resources.translate_disabled_description
 import app.s4h.nisafone.settings.generated.resources.translate_enabled_description
 import app.s4h.nisafone.settings.generated.resources.translate_to_english
+import app.s4h.nisafone.settings.generated.resources.weekday_friday
+import app.s4h.nisafone.settings.generated.resources.weekday_monday
+import app.s4h.nisafone.settings.generated.resources.weekday_saturday
+import app.s4h.nisafone.settings.generated.resources.weekday_sunday
+import app.s4h.nisafone.settings.generated.resources.weekday_thursday
+import app.s4h.nisafone.settings.generated.resources.weekday_tuesday
+import app.s4h.nisafone.settings.generated.resources.weekday_wednesday
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
@@ -181,6 +201,18 @@ fun SettingsScreen(
                     emailAddress = uiState.autoEmailAddress,
                     onEnabledChanged = viewModel::setAutoEmailEnabled,
                     onEmailAddressChanged = viewModel::setAutoEmailAddress
+                )
+            }
+
+            // Auto-start transcription schedule
+            item {
+                AutoStartScheduleCard(
+                    enabled = uiState.autoStartScheduleEnabled,
+                    schedules = uiState.autoStartSchedules,
+                    onEnabledChanged = viewModel::setAutoStartScheduleEnabled,
+                    onAddSchedule = viewModel::addAutoStartSchedule,
+                    onUpdateSchedule = viewModel::updateAutoStartSchedule,
+                    onRemoveSchedule = viewModel::removeAutoStartSchedule
                 )
             }
 
@@ -586,6 +618,205 @@ private fun ModelCard(
             }
         }
     }
+}
+
+@Composable
+private fun AutoStartScheduleCard(
+    enabled: Boolean,
+    schedules: List<AutoStartSchedule>,
+    onEnabledChanged: (Boolean) -> Unit,
+    onAddSchedule: () -> Unit,
+    onUpdateSchedule: (AutoStartSchedule) -> Unit,
+    onRemoveSchedule: (String) -> Unit
+) {
+    val weekDays = listOf(
+        1 to Res.string.weekday_monday,
+        2 to Res.string.weekday_tuesday,
+        3 to Res.string.weekday_wednesday,
+        4 to Res.string.weekday_thursday,
+        5 to Res.string.weekday_friday,
+        6 to Res.string.weekday_saturday,
+        7 to Res.string.weekday_sunday
+    )
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(Res.string.auto_start_schedule),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(Res.string.auto_start_schedule_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onEnabledChanged
+                )
+            }
+
+            AnimatedVisibility(visible = enabled) {
+                Column {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = onAddSchedule,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(Res.string.add_schedule))
+                    }
+
+                    if (schedules.isEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = stringResource(Res.string.auto_start_schedule_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    schedules.forEachIndexed { index, schedule ->
+                        val isTimeValid = isValidScheduleTime(schedule.time)
+                        val isDurationValid = schedule.durationMinutes > 0
+
+                        Text(
+                            text = stringResource(Res.string.schedule_entry, index + 1),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = stringResource(Res.string.schedule_days),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(weekDays) { (dayValue, dayLabelRes) ->
+                                val isSelected = dayValue in schedule.daysOfWeek
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        val updatedDays = if (isSelected) {
+                                            if (schedule.daysOfWeek.size == 1) {
+                                                schedule.daysOfWeek
+                                            } else {
+                                                schedule.daysOfWeek - dayValue
+                                            }
+                                        } else {
+                                            schedule.daysOfWeek + dayValue
+                                        }
+                                        onUpdateSchedule(schedule.copy(daysOfWeek = updatedDays))
+                                    },
+                                    label = { Text(stringResource(dayLabelRes)) }
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = schedule.time,
+                            onValueChange = { newValue ->
+                                val isAllowed = newValue.length <= 5 && newValue.all { it.isDigit() || it == ':' }
+                                if (isAllowed) {
+                                    onUpdateSchedule(schedule.copy(time = newValue))
+                                }
+                            },
+                            label = { Text(stringResource(Res.string.schedule_time)) },
+                            placeholder = { Text(stringResource(Res.string.schedule_time_placeholder)) },
+                            singleLine = true,
+                            isError = schedule.time.isNotBlank() && !isTimeValid,
+                            supportingText = {
+                                if (schedule.time.isNotBlank() && !isTimeValid) {
+                                    Text(stringResource(Res.string.schedule_time_format_hint))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = schedule.durationMinutes.toString(),
+                            onValueChange = { newValue ->
+                                val digits = newValue.filter { it.isDigit() }.take(4)
+                                val parsed = digits.toIntOrNull()
+                                if (parsed != null && parsed > 0) {
+                                    onUpdateSchedule(schedule.copy(durationMinutes = parsed))
+                                }
+                            },
+                            label = { Text(stringResource(Res.string.schedule_duration)) },
+                            placeholder = { Text(stringResource(Res.string.schedule_duration_placeholder)) },
+                            singleLine = true,
+                            isError = !isDurationValid,
+                            supportingText = {
+                                if (!isDurationValid) {
+                                    Text(stringResource(Res.string.schedule_duration_hint))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            TextButton(onClick = { onRemoveSchedule(schedule.id) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(Res.string.delete))
+                            }
+                        }
+
+                        if (index != schedules.lastIndex) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+            }
+        }
+    }
+}
+
+private fun isValidScheduleTime(value: String): Boolean {
+    val parts = value.split(":")
+    if (parts.size != 2) return false
+
+    val hour = parts[0].toIntOrNull() ?: return false
+    val minute = parts[1].toIntOrNull() ?: return false
+    return hour in 0..23 && minute in 0..59 && parts[0].length == 2 && parts[1].length == 2
 }
 
 @Composable

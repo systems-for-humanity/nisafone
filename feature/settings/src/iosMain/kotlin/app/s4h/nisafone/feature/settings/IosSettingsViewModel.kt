@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlin.random.Random
 
 /**
  * iOS implementation of SettingsViewModel.
@@ -28,7 +29,9 @@ class IosSettingsViewModel(
         _uiState.update {
             it.copy(
                 autoEmailEnabled = emailSettingsRepository.autoEmailEnabled.value,
-                autoEmailAddress = emailSettingsRepository.emailAddress.value
+                autoEmailAddress = emailSettingsRepository.emailAddress.value,
+                autoStartScheduleEnabled = emailSettingsRepository.autoStartScheduleEnabled.value,
+                autoStartSchedules = emailSettingsRepository.autoStartSchedules.value
             )
         }
     }
@@ -81,6 +84,32 @@ class IosSettingsViewModel(
     override fun setAutoEmailAddress(address: String) {
         emailSettingsRepository.setEmailAddress(address)
         _uiState.update { it.copy(autoEmailAddress = address) }
+    }
+
+    override fun setAutoStartScheduleEnabled(enabled: Boolean) {
+        emailSettingsRepository.setAutoStartScheduleEnabled(enabled)
+        _uiState.update { it.copy(autoStartScheduleEnabled = enabled) }
+    }
+
+    override fun addAutoStartSchedule() {
+        val newScheduleId = "schedule-${Random.nextLong(1_000_000_000L, 9_999_999_999L)}"
+        val updated = emailSettingsRepository.autoStartSchedules.value + AutoStartSchedule.default(newScheduleId)
+        emailSettingsRepository.setAutoStartSchedules(updated)
+        _uiState.update { it.copy(autoStartSchedules = updated) }
+    }
+
+    override fun updateAutoStartSchedule(schedule: AutoStartSchedule) {
+        val updated = emailSettingsRepository.autoStartSchedules.value.map {
+            if (it.id == schedule.id) schedule.normalized() else it
+        }
+        emailSettingsRepository.setAutoStartSchedules(updated)
+        _uiState.update { it.copy(autoStartSchedules = updated) }
+    }
+
+    override fun removeAutoStartSchedule(scheduleId: String) {
+        val updated = emailSettingsRepository.autoStartSchedules.value.filterNot { it.id == scheduleId }
+        emailSettingsRepository.setAutoStartSchedules(updated)
+        _uiState.update { it.copy(autoStartSchedules = updated) }
     }
 
     override fun clearError() {

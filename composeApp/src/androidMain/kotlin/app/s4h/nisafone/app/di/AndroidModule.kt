@@ -8,6 +8,8 @@ import app.s4h.nisafone.core.sharing.createAndroidShareService
 import app.s4h.nisafone.core.transcription.ModelManager
 import app.s4h.nisafone.core.transcription.TranscriptionService
 import app.s4h.nisafone.core.transcription.createSherpaOnnxTranscriptionService
+import app.s4h.nisafone.feature.recording.AndroidAutoStartScheduleTimer
+import app.s4h.nisafone.feature.recording.AutoStartScheduleTimer
 import app.s4h.nisafone.feature.recording.AndroidTitlePrefixRepository
 import app.s4h.nisafone.feature.recording.TitlePrefixRepository
 import app.s4h.nisafone.feature.settings.AndroidEmailSettingsRepository
@@ -30,6 +32,7 @@ val androidModule = module {
 
     // Title prefix repository
     single<TitlePrefixRepository> { AndroidTitlePrefixRepository(androidContext()) }
+    single<AutoStartScheduleTimer> { AndroidAutoStartScheduleTimer(androidContext()) }
 
     // Email settings repository
     single<EmailSettingsRepository> { AndroidEmailSettingsRepository(androidContext()) }

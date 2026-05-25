@@ -18,6 +18,8 @@ data class SettingsUiState(
     val translateToEnglish: Boolean = true,
     val autoEmailEnabled: Boolean = false,
     val autoEmailAddress: String = "",
+    val autoStartScheduleEnabled: Boolean = false,
+    val autoStartSchedules: List<AutoStartSchedule> = emptyList(),
     val isDiscovering: Boolean = false,
     val hasDiscoveredRemoteModels: Boolean = false
 ) {
@@ -68,6 +70,10 @@ interface SettingsViewModelInterface {
     fun setTranslateToEnglish(translate: Boolean)
     fun setAutoEmailEnabled(enabled: Boolean)
     fun setAutoEmailAddress(address: String)
+    fun setAutoStartScheduleEnabled(enabled: Boolean)
+    fun addAutoStartSchedule()
+    fun updateAutoStartSchedule(schedule: AutoStartSchedule)
+    fun removeAutoStartSchedule(scheduleId: String)
     fun discoverMoreModels()
     fun clearError()
 }
