@@ -14,7 +14,7 @@ class IosAutoStartScheduleTimer : AutoStartScheduleTimer {
         val delaySeconds = ((triggerAtEpochMillis - nowEpochMillis) / 1_000.0).coerceAtLeast(0.0)
 
         timer = NSTimer.scheduledTimerWithTimeInterval(
-            ti = delaySeconds,
+            interval = delaySeconds,
             repeats = false
         ) {
             timer?.invalidate()
