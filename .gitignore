@@ -46,3 +46,7 @@ secrets.properties
 
 # Play Store assets (upload only, not committed)
 playstore-assets/
+
+# Local working artifacts (browser automation snapshots, console screenshots)
+.playwright-cli/
+/*.png
