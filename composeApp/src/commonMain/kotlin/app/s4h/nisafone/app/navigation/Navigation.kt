@@ -1,6 +1,5 @@
 package app.s4h.nisafone.app.navigation
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -70,7 +69,7 @@ fun AppNavigation(
     ManageRecordingService(isRecording = recordingUiState.isRecording)
 
     // Handle back button - go back to Recording screen from History/Settings
-    BackHandler(enabled = currentScreen != Screen.Recording) {
+    AppBackHandler(enabled = currentScreen != Screen.Recording) {
         currentScreen = Screen.Recording
     }
 
