@@ -22,11 +22,14 @@ import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
 import platform.AVFAudio.AVAudioSessionModeMeasurement
 import platform.AVFAudio.AVAudioSessionPortDescription
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
+import platform.AVFAudio.availableInputs
 import platform.AVFAudio.setActive
+import platform.AVFAudio.setPreferredInput
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
+import platform.Foundation.timeIntervalSince1970
 import platform.posix.memcpy
 
 actual fun createAudioRecorder(): AudioRecorder = IosAudioRecorder()

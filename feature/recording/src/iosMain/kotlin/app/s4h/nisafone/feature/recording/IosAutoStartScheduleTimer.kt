@@ -2,6 +2,7 @@ package app.s4h.nisafone.feature.recording
 
 import platform.Foundation.NSDate
 import platform.Foundation.NSTimer
+import platform.Foundation.timeIntervalSince1970
 
 class IosAutoStartScheduleTimer : AutoStartScheduleTimer {
     private var timer: NSTimer? = null
