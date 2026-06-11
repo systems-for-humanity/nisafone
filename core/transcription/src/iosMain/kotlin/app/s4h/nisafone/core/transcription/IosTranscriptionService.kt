@@ -156,7 +156,7 @@ class IosTranscriptionService : TranscriptionService {
             result?.let { speechResult ->
                 val text = speechResult.bestTranscription.formattedString
 
-                if (speechResult.isFinal) {
+                if (speechResult.isFinal()) {
                     // Final result
                     val currentTime = (platform.Foundation.NSDate().timeIntervalSince1970 * 1000).toLong() - sessionStartTime
                     val speaker = _currentSpeaker.value ?: return@recognitionTaskWithRequest
