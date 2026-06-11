@@ -24,7 +24,6 @@ import platform.AVFAudio.AVAudioSessionPortDescription
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
 import platform.AVFAudio.availableInputs
 import platform.AVFAudio.setActive
-import platform.AVFAudio.setPreferredInput
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSNotificationCenter
