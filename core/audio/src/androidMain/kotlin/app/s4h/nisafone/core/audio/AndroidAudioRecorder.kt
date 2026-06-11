@@ -204,6 +204,10 @@ class AndroidAudioRecorder(
 
         if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
             logger.e { "Failed to initialize AudioRecord" }
+            // Release the half-constructed instance so a later stopRecording()
+            // doesn't call stop() on an uninitialized recorder
+            audioRecord?.release()
+            audioRecord = null
             _state.value = RecordingState.ERROR
             return
         }
@@ -242,7 +246,11 @@ class AndroidAudioRecorder(
     override suspend fun stopRecording() {
         logger.d { "Stopping recording" }
         // Stop capture — read() will return remaining buffered data, then 0
-        audioRecord?.stop()
+        try {
+            audioRecord?.stop()
+        } catch (e: IllegalStateException) {
+            logger.w(e) { "AudioRecord.stop() failed, continuing cleanup" }
+        }
         // Wait for recording loop to drain the buffer (with timeout as safety net)
         withTimeoutOrNull(1000) { recordingJob?.join() }
         recordingJob?.cancel()

@@ -114,9 +114,6 @@ fun RecordingScreen(
         KeepScreenOn()
     }
 
-    // Start/stop foreground service to keep recording alive when backgrounded
-    ManageRecordingService(isRecording = uiState.isRecording)
-
     // Add prefix dialog
     if (uiState.showAddPrefixDialog) {
         AddPrefixDialog(

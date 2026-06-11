@@ -8,6 +8,19 @@ on:
         required: false
         type: boolean
         default: true
+      track:
+        description: 'Play Store track'
+        required: false
+        type: choice
+        options:
+          - internal
+          - beta
+        default: internal
+      changes_not_sent_for_review:
+        description: 'Commit without sending for review (only needed if Play rejects auto-review)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-release:
@@ -67,6 +80,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           packageName: app.s4h.nisafone.android
           releaseFiles: androidApp/build/outputs/bundle/release/*.aab
-          track: internal
+          track: ${{ inputs.track }}
           mappingFile: androidApp/build/outputs/mapping/release/mapping.txt
-          changesNotSentForReview: true
+          changesNotSentForReview: ${{ inputs.changes_not_sent_for_review }}

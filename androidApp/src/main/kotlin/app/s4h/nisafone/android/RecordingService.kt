@@ -9,11 +9,13 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 class RecordingService : Service() {
 
     companion object {
+        private const val TAG = "RecordingService"
         private const val CHANNEL_ID = "recording_channel"
         private const val NOTIFICATION_ID = 1
     }
@@ -25,16 +27,27 @@ class RecordingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            // Android 12+ throws ForegroundServiceStartNotAllowedException (and 14+
+            // a SecurityException for the microphone type) when the app is not in a
+            // foreground-eligible state, e.g. a system restart of the service
+            Log.w(TAG, "Cannot enter foreground, stopping service", e)
+            stopSelf()
+            return START_NOT_STICKY
         }
-        return START_STICKY
+        // Recording state lives in the app process; a system restart of this
+        // service after process death has nothing to resume
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -52,7 +65,7 @@ class RecordingService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val tapIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pendingIntent = PendingIntent.getActivity(

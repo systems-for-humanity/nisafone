@@ -5,6 +5,7 @@ import app.s4h.nisafone.core.audio.AudioDevice
 import app.s4h.nisafone.core.audio.AudioRecorder
 import app.s4h.nisafone.core.audio.RecordingState
 import app.s4h.nisafone.core.domain.model.Recording
+import app.s4h.nisafone.core.domain.usecase.DeleteRecordingUseCase
 import app.s4h.nisafone.core.domain.usecase.RecordingRepository
 import app.s4h.nisafone.core.domain.usecase.SaveRecordingUseCase
 import app.s4h.nisafone.core.domain.usecase.UpdateRecordingUseCase
@@ -19,6 +20,7 @@ import app.s4h.nisafone.core.transcription.TranscriptionService
 import app.s4h.nisafone.core.transcription.TranscriptionState
 import app.s4h.nisafone.core.transcription.Utterance
 import app.s4h.nisafone.feature.settings.EmailSettingsRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -45,6 +47,8 @@ class RecordingViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var fakeShareService: FakeShareService
     private lateinit var fakeTranscriptionService: FakeTranscriptionService
+    private lateinit var fakeAudioRecorder: FakeAudioRecorder
+    private lateinit var fakeRepository: FakeRecordingRepository
     private lateinit var viewModel: RecordingViewModel
 
     @BeforeTest
@@ -52,12 +56,15 @@ class RecordingViewModelTest {
         Dispatchers.setMain(testDispatcher)
         fakeShareService = FakeShareService()
         fakeTranscriptionService = FakeTranscriptionService()
+        fakeAudioRecorder = FakeAudioRecorder()
+        fakeRepository = FakeRecordingRepository()
         viewModel = RecordingViewModel(
-            audioRecorder = FakeAudioRecorder(),
+            audioRecorder = fakeAudioRecorder,
             transcriptionService = fakeTranscriptionService,
             shareService = fakeShareService,
-            saveRecordingUseCase = SaveRecordingUseCase(FakeRecordingRepository()),
-            updateRecordingUseCase = UpdateRecordingUseCase(FakeRecordingRepository()),
+            saveRecordingUseCase = SaveRecordingUseCase(fakeRepository),
+            updateRecordingUseCase = UpdateRecordingUseCase(fakeRepository),
+            deleteRecordingUseCase = DeleteRecordingUseCase(fakeRepository),
             titlePrefixRepository = FakeTitlePrefixRepository(),
             emailSettingsRepository = FakeEmailSettingsRepository(),
             autoStartScheduleTimer = FakeAutoStartScheduleTimer(),
@@ -154,6 +161,82 @@ class RecordingViewModelTest {
 
         assertFalse(viewModel.uiState.value.isSharing)
     }
+
+    @Test
+    fun infoEvent_surfacesMessageWithoutBeingAnError() = runTest {
+        fakeTranscriptionService.emitInfo("Switched to Whisper Tiny")
+        advanceUntilIdle()
+
+        assertEquals("Switched to Whisper Tiny", viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun onCleared_doesNotReleaseSharedSingletonServices() = runTest {
+        callOnCleared(viewModel)
+
+        assertFalse(
+            fakeAudioRecorder.releaseCalled,
+            "audioRecorder is an app-scoped singleton and must survive ViewModel clearing"
+        )
+        assertFalse(
+            fakeTranscriptionService.releaseCalled,
+            "transcriptionService is an app-scoped singleton and must survive ViewModel clearing"
+        )
+    }
+
+    @Test
+    fun stopRecording_deletesPlaceholderWhenNothingWasTranscribed() = runTest {
+        viewModel.startRecording()
+        advanceUntilIdle()
+        val recordingId = fakeRepository.savedIds.single()
+
+        // FakeTranscriptionService.stopTranscription returns null (no speech)
+        viewModel.stopRecording()
+        advanceUntilIdle()
+
+        assertEquals(listOf(recordingId), fakeRepository.deletedIds)
+    }
+
+    @Test
+    fun stopRecording_keepsRecordingWhenUtterancesWereCollected() = runTest {
+        viewModel.startRecording()
+        advanceUntilIdle()
+
+        val utterance = Utterance(
+            id = "1",
+            text = "Hello",
+            speaker = Speaker(id = "s1", label = "Alice"),
+            startTimeMs = 0,
+            endTimeMs = 1000
+        )
+        fakeTranscriptionService.emitFinalResult(utterance)
+        advanceUntilIdle()
+
+        // Final result is null, but partial utterances were collected and saved
+        viewModel.stopRecording()
+        advanceUntilIdle()
+
+        assertTrue(fakeRepository.deletedIds.isEmpty())
+    }
+
+    @Test
+    fun onCleared_stopsAnActiveRecording() = runTest {
+        fakeAudioRecorder.state.value = RecordingState.RECORDING
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.isRecording)
+
+        callOnCleared(viewModel)
+
+        fakeAudioRecorder.stopRecordingCalled.await()
+        fakeTranscriptionService.stopTranscriptionCalled.await()
+    }
+
+    // onCleared is protected; invoke the override via reflection
+    private fun callOnCleared(viewModel: RecordingViewModel) {
+        val method = viewModel.javaClass.getDeclaredMethod("onCleared")
+        method.isAccessible = true
+        method.invoke(viewModel)
+    }
 }
 
 // Test doubles
@@ -181,11 +264,18 @@ private class FakeAudioRecorder : AudioRecorder {
     override val availableDevices = MutableStateFlow<List<AudioDevice>>(emptyList())
     override val selectedDevice = MutableStateFlow<AudioDevice?>(null)
 
+    var releaseCalled = false
+    val stopRecordingCalled = CompletableDeferred<Unit>()
+
     override suspend fun initialize() {}
     override suspend fun startRecording() {}
-    override suspend fun stopRecording() {}
+    override suspend fun stopRecording() {
+        stopRecordingCalled.complete(Unit)
+    }
     override suspend fun selectDevice(device: AudioDevice) {}
-    override fun release() {}
+    override fun release() {
+        releaseCalled = true
+    }
 }
 
 private class FakeTranscriptionService : TranscriptionService {
@@ -200,6 +290,9 @@ private class FakeTranscriptionService : TranscriptionService {
 
     private var eventCallback: ((TranscriptionEvent) -> Unit)? = null
 
+    var releaseCalled = false
+    val stopTranscriptionCalled = CompletableDeferred<Unit>()
+
     override val events: Flow<TranscriptionEvent> = callbackFlow {
         eventCallback = { event -> trySend(event) }
         awaitCancellation()
@@ -213,6 +306,10 @@ private class FakeTranscriptionService : TranscriptionService {
         eventCallback?.invoke(TranscriptionEvent.PartialResult(text))
     }
 
+    fun emitInfo(message: String) {
+        eventCallback?.invoke(TranscriptionEvent.Info(message))
+    }
+
     fun setCurrentSpeaker(speaker: Speaker?) {
         _currentSpeaker.value = speaker
     }
@@ -220,19 +317,34 @@ private class FakeTranscriptionService : TranscriptionService {
     override suspend fun initialize() {}
     override suspend fun startTranscription() {}
     override suspend fun processAudioChunk(chunk: AudioChunk) {}
-    override suspend fun stopTranscription(): TranscriptionResult? = null
+    override suspend fun stopTranscription(): TranscriptionResult? {
+        stopTranscriptionCalled.complete(Unit)
+        return null
+    }
     override suspend fun setLanguage(language: SpeechLanguage) {}
     override suspend fun setLanguageHint(hint: LanguageHint) {}
     override suspend fun setTranslateToEnglish(translate: Boolean) {}
-    override fun release() {}
+    override fun release() {
+        releaseCalled = true
+    }
 }
 
 private class FakeRecordingRepository : RecordingRepository {
+    val savedIds = mutableListOf<String>()
+    val updatedIds = mutableListOf<String>()
+    val deletedIds = mutableListOf<String>()
+
     override fun getAllRecordings(): Flow<List<Recording>> = emptyFlow()
     override fun getRecordingById(id: String): Flow<Recording?> = emptyFlow()
-    override suspend fun saveRecording(recording: Recording) {}
-    override suspend fun deleteRecording(id: String) {}
-    override suspend fun updateRecording(recording: Recording) {}
+    override suspend fun saveRecording(recording: Recording) {
+        savedIds.add(recording.id)
+    }
+    override suspend fun deleteRecording(id: String) {
+        deletedIds.add(id)
+    }
+    override suspend fun updateRecording(recording: Recording) {
+        updatedIds.add(recording.id)
+    }
 }
 
 private class FakeTitlePrefixRepository : TitlePrefixRepository {

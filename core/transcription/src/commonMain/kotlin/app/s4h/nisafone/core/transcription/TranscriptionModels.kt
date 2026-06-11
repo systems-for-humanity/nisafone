@@ -31,6 +31,7 @@ data class TranscriptionResult(
 sealed class TranscriptionEvent {
     data class PartialResult(val text: String) : TranscriptionEvent()
     data class FinalResult(val utterance: Utterance) : TranscriptionEvent()
+    data class Info(val message: String) : TranscriptionEvent()
     data class Error(val message: String, val cause: Throwable? = null) : TranscriptionEvent()
 }
 

@@ -29,16 +29,20 @@ import app.s4h.nisafone.composeapp.generated.resources.nav_history
 import app.s4h.nisafone.composeapp.generated.resources.nav_record
 import app.s4h.nisafone.composeapp.generated.resources.nav_settings
 import app.s4h.nisafone.composeapp.generated.resources.share_title
+import androidx.compose.runtime.collectAsState
 import app.s4h.nisafone.core.domain.model.Recording
 import app.s4h.nisafone.core.sharing.ShareService
 import app.s4h.nisafone.feature.history.HistoryScreen
 import app.s4h.nisafone.feature.history.RecordingDetailScreen
+import app.s4h.nisafone.feature.recording.ManageRecordingService
 import app.s4h.nisafone.feature.recording.RecordingScreen
+import app.s4h.nisafone.feature.recording.RecordingViewModel
 import app.s4h.nisafone.feature.settings.SettingsScreen
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 enum class Screen(
     val titleRes: StringResource,
@@ -58,6 +62,12 @@ fun AppNavigation(
     val shareService: ShareService = koinInject()
     val scope = rememberCoroutineScope()
     val shareTitle = stringResource(Res.string.share_title)
+
+    // Tied to recording state at the navigation root so switching tabs doesn't
+    // dispose the foreground service while a recording continues
+    val recordingViewModel: RecordingViewModel = koinViewModel()
+    val recordingUiState by recordingViewModel.uiState.collectAsState()
+    ManageRecordingService(isRecording = recordingUiState.isRecording)
 
     // Handle back button - go back to Recording screen from History/Settings
     BackHandler(enabled = currentScreen != Screen.Recording) {

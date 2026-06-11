@@ -66,6 +66,7 @@ class SherpaOnnxTranscriptionService(
     }
 
     private var recognizer: OfflineRecognizer? = null
+    private val recognizerLock = Any()
     private var currentModel: SpeechModel? = null
     private val audioBuffer = mutableListOf<FloatArray>()
     private var sessionStartTime: Long = 0
@@ -202,9 +203,12 @@ class SherpaOnnxTranscriptionService(
             throw IllegalStateException("Model not downloaded: ${model.displayName}")
         }
 
-        // Release existing recognizer
-        recognizer?.release()
-        recognizer = null
+        // Release existing recognizer; the lock keeps this from freeing native
+        // memory under an in-flight chunk decode
+        synchronized(recognizerLock) {
+            recognizer?.release()
+            recognizer = null
+        }
 
         val config = createWhisperConfig(modelDir, model)
         recognizer = OfflineRecognizer(config = config)
@@ -289,7 +293,7 @@ class SherpaOnnxTranscriptionService(
                     initializeWithModel(modelForLanguage)
                 }
                 _state.value = TranscriptionState.READY
-                _events.emit(TranscriptionEvent.Error("Switched to ${modelForLanguage.displayName}"))
+                _events.emit(TranscriptionEvent.Info("Switched to ${modelForLanguage.displayName}"))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to switch model: ${e.message}", e)
                 _state.value = TranscriptionState.ERROR
@@ -319,7 +323,7 @@ class SherpaOnnxTranscriptionService(
                     initializeWithModel(model)
                 }
                 _state.value = TranscriptionState.READY
-                _events.emit(TranscriptionEvent.Error("Language hint set to ${hint.displayName}"))
+                _events.emit(TranscriptionEvent.Info("Language hint set to ${hint.displayName}"))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to reinitialize with new language hint: ${e.message}", e)
                 _state.value = TranscriptionState.ERROR
@@ -348,7 +352,7 @@ class SherpaOnnxTranscriptionService(
                 }
                 _state.value = TranscriptionState.READY
                 val message = if (translate) "Translation to English enabled" else "Original language transcription enabled"
-                _events.emit(TranscriptionEvent.Error(message))
+                _events.emit(TranscriptionEvent.Info(message))
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to reinitialize with new translate setting: ${e.message}", e)
                 _state.value = TranscriptionState.ERROR
@@ -570,10 +574,22 @@ class SherpaOnnxTranscriptionService(
     }
 
     private fun transcribeChunk(recognizer: OfflineRecognizer, samples: FloatArray): String {
-        val stream = recognizer.createStream()
-        stream.acceptWaveform(samples, SAMPLE_RATE)
-        recognizer.decode(stream)
-        return recognizer.getResult(stream).text.trim()
+        synchronized(recognizerLock) {
+            // The model may have been switched or released after this chunk was queued;
+            // decoding with a released recognizer crashes in native code
+            if (recognizer !== this.recognizer) {
+                Log.w(TAG, "Recognizer changed before chunk decode, dropping chunk")
+                return ""
+            }
+            val stream = recognizer.createStream()
+            try {
+                stream.acceptWaveform(samples, SAMPLE_RATE)
+                recognizer.decode(stream)
+                return recognizer.getResult(stream).text.trim()
+            } finally {
+                stream.release()
+            }
+        }
     }
 
     override fun release() {
@@ -581,7 +597,9 @@ class SherpaOnnxTranscriptionService(
         logger.d { "Releasing transcription service" }
         scope.cancel()
         audioBuffer.clear()
-        recognizer?.release()
-        recognizer = null
+        synchronized(recognizerLock) {
+            recognizer?.release()
+            recognizer = null
+        }
     }
 }

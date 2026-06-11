@@ -7,6 +7,7 @@ import app.s4h.nisafone.core.audio.AudioDevice
 import app.s4h.nisafone.core.audio.AudioRecorder
 import app.s4h.nisafone.core.audio.RecordingState
 import app.s4h.nisafone.core.domain.model.Recording
+import app.s4h.nisafone.core.domain.usecase.DeleteRecordingUseCase
 import app.s4h.nisafone.core.domain.usecase.SaveRecordingUseCase
 import app.s4h.nisafone.core.domain.usecase.UpdateRecordingUseCase
 import app.s4h.nisafone.core.sharing.ShareResult
@@ -20,12 +21,15 @@ import app.s4h.nisafone.core.transcription.TranscriptionResult
 import app.s4h.nisafone.core.transcription.TranscriptionService
 import app.s4h.nisafone.core.transcription.TranscriptionState
 import app.s4h.nisafone.core.transcription.Utterance
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
@@ -85,6 +89,7 @@ class RecordingViewModel(
     private val shareService: ShareService,
     private val saveRecordingUseCase: SaveRecordingUseCase,
     private val updateRecordingUseCase: UpdateRecordingUseCase,
+    private val deleteRecordingUseCase: DeleteRecordingUseCase,
     private val titlePrefixRepository: TitlePrefixRepository,
     private val emailSettingsRepository: EmailSettingsRepository,
     private val autoStartScheduleTimer: AutoStartScheduleTimer,
@@ -209,6 +214,10 @@ class RecordingViewModel(
                         }
                         // Save with final utterance
                         saveCurrentTranscription()
+                    }
+                    is TranscriptionEvent.Info -> {
+                        logger.i { "Transcription notice: ${event.message}" }
+                        _uiState.update { it.copy(error = event.message) }
                     }
                     is TranscriptionEvent.Error -> {
                         logger.e { "Transcription error: ${event.message}" }
@@ -583,16 +592,23 @@ class RecordingViewModel(
 
                 // Save final recording with complete transcription
                 val recordingId = currentRecordingId
-                if (recordingId != null && result != null) {
-                    logger.d { "Saving final recording with ${result.utterances.size} utterances" }
-                    val finalTranscription = result.copy(
-                        id = recordingId,
-                        isComplete = true
-                    )
-                    saveFinalRecording(recordingId, finalTranscription)
+                if (recordingId != null) {
+                    if (result != null && result.utterances.isNotEmpty()) {
+                        logger.d { "Saving final recording with ${result.utterances.size} utterances" }
+                        val finalTranscription = result.copy(
+                            id = recordingId,
+                            isComplete = true
+                        )
+                        saveFinalRecording(recordingId, finalTranscription)
 
-                    // Auto-email if enabled
-                    sendAutoEmail(finalTranscription)
+                        // Auto-email if enabled
+                        sendAutoEmail(finalTranscription)
+                    } else if (collectedUtterances.isEmpty()) {
+                        // Nothing was ever transcribed — remove the placeholder row
+                        // created at start so history doesn't fill with empty entries
+                        logger.d { "No transcription captured, deleting empty recording $recordingId" }
+                        deleteRecordingUseCase(recordingId)
+                    }
                 }
                 currentRecordingId = null
             } catch (e: Exception) {
@@ -714,7 +730,16 @@ class RecordingViewModel(
         autoStartScheduleJob?.cancel()
         autoStartScheduleTimer.cancel()
         autoStopRecordingJob?.cancel()
-        audioRecorder.release()
-        transcriptionService.release()
+        // audioRecorder and transcriptionService are app-scoped singletons shared
+        // with the next ViewModel instance, so don't release() them here — just
+        // stop an in-flight recording so the microphone isn't left running
+        if (_uiState.value.isRecording) {
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                runCatching { audioRecorder.stopRecording() }
+                    .onFailure { logger.e(it) { "Failed to stop recorder on clear" } }
+                runCatching { transcriptionService.stopTranscription() }
+                    .onFailure { logger.e(it) { "Failed to stop transcription on clear" } }
+            }
+        }
     }
 }

@@ -19,3 +19,8 @@
     <init>(...);
     <fields>;
 }
+
+# Keep Sherpa-ONNX JNI bindings — the native libsherpa-onnx-jni.so looks up
+# these classes/members by name; the AAR ships no consumer rules, so R8
+# stripping or renaming them crashes release builds only
+-keep class com.k2fsa.sherpa.onnx.** { *; }

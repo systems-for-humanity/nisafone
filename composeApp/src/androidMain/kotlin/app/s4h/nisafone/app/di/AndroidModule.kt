@@ -37,8 +37,8 @@ val androidModule = module {
     // Email settings repository
     single<EmailSettingsRepository> { AndroidEmailSettingsRepository(androidContext()) }
 
-    // ViewModels - register with interface type for KMP compatibility
-    single<SettingsViewModelInterface> { SettingsViewModel() }
+    // App-scoped settings state holder, injected via interface for KMP compatibility
+    single<SettingsViewModelInterface> { SettingsViewModel(get(), get(), get()) }
 
     // Database driver
     single { DatabaseDriverFactory(androidContext()) }

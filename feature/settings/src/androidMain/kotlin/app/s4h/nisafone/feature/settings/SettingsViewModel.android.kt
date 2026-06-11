@@ -1,30 +1,32 @@
 package app.s4h.nisafone.feature.settings
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import app.s4h.nisafone.core.transcription.LanguageHint
 import app.s4h.nisafone.core.transcription.ModelManager
 import app.s4h.nisafone.core.transcription.SpeechModel
 import app.s4h.nisafone.core.transcription.SpeechModelType
 import app.s4h.nisafone.core.transcription.TranscriptionService
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import kotlin.random.Random
 
-class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface {
+// App-scoped (registered as a Koin single), not an androidx ViewModel — it is
+// never tied to a lifecycle owner and its scope lives for the process lifetime
+class SettingsViewModel(
+    private val modelManager: ModelManager,
+    private val transcriptionService: TranscriptionService,
+    private val emailSettingsRepository: EmailSettingsRepository
+) : SettingsViewModelInterface {
 
     private val logger = Logger.withTag("SettingsViewModel")
-    private val modelManager: ModelManager by inject()
-    private val transcriptionService: TranscriptionService by inject()
-    private val emailSettingsRepository: EmailSettingsRepository by inject()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     override val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -39,12 +41,12 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     private fun observeDownloads() {
-        viewModelScope.launch {
+        scope.launch {
             modelManager.downloadingModels.collect { downloading ->
                 _uiState.update { it.copy(downloadingModelIds = downloading) }
             }
         }
-        viewModelScope.launch {
+        scope.launch {
             modelManager.downloadProgress.collect { progress ->
                 _uiState.update { it.copy(downloadProgress = progress) }
             }
@@ -52,7 +54,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     private fun observeLanguageHint() {
-        viewModelScope.launch {
+        scope.launch {
             transcriptionService.currentLanguageHint.collect { hint ->
                 _uiState.update { it.copy(languageHint = hint) }
             }
@@ -60,7 +62,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     private fun observeTranslateSetting() {
-        viewModelScope.launch {
+        scope.launch {
             transcriptionService.translateToEnglish.collect { translate ->
                 _uiState.update { it.copy(translateToEnglish = translate) }
             }
@@ -68,12 +70,12 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     private fun observeAutoShareSettings() {
-        viewModelScope.launch {
+        scope.launch {
             emailSettingsRepository.autoEmailEnabled.collect { enabled ->
                 _uiState.update { it.copy(autoEmailEnabled = enabled) }
             }
         }
-        viewModelScope.launch {
+        scope.launch {
             emailSettingsRepository.emailAddress.collect { address ->
                 _uiState.update { it.copy(autoEmailAddress = address) }
             }
@@ -81,12 +83,12 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     private fun observeAutoStartScheduleSettings() {
-        viewModelScope.launch {
+        scope.launch {
             emailSettingsRepository.autoStartScheduleEnabled.collect { enabled ->
                 _uiState.update { it.copy(autoStartScheduleEnabled = enabled) }
             }
         }
-        viewModelScope.launch {
+        scope.launch {
             emailSettingsRepository.autoStartSchedules.collect { schedules ->
                 _uiState.update { it.copy(autoStartSchedules = schedules) }
             }
@@ -94,7 +96,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     override fun loadModels() {
-        viewModelScope.launch {
+        scope.launch {
             try {
                 // After discovery, use full catalog; otherwise local-only (fast, no network)
                 val useFullCatalog = _uiState.value.hasDiscoveredRemoteModels
@@ -123,7 +125,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     override fun discoverMoreModels() {
-        viewModelScope.launch {
+        scope.launch {
             try {
                 _uiState.update { it.copy(isDiscovering = true) }
 
@@ -160,7 +162,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     override fun downloadModel(model: SpeechModel) {
-        viewModelScope.launch {
+        scope.launch {
             val result = modelManager.downloadModel(model)
             result.onFailure { e ->
                 _uiState.update { it.copy(error = "Download failed: ${e.message}") }
@@ -170,7 +172,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     override fun deleteModel(model: SpeechModel) {
-        viewModelScope.launch {
+        scope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     modelManager.deleteModel(model)
@@ -201,7 +203,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     override fun setLanguageHint(hint: LanguageHint) {
-        viewModelScope.launch {
+        scope.launch {
             try {
                 transcriptionService.setLanguageHint(hint)
             } catch (e: Exception) {
@@ -212,7 +214,7 @@ class SettingsViewModel : ViewModel(), KoinComponent, SettingsViewModelInterface
     }
 
     override fun setTranslateToEnglish(translate: Boolean) {
-        viewModelScope.launch {
+        scope.launch {
             try {
                 transcriptionService.setTranslateToEnglish(translate)
             } catch (e: Exception) {
