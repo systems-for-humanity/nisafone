@@ -56,7 +56,7 @@ Release signing reads from env vars: `SIGNING_STORE_FILE`, `SIGNING_STORE_PASSWO
 # CI / Release Workflows
 
 `.github/workflows/`:
-- `ci.yml` — runs on push/PR to main; builds debug APK + tests (Android) and iOS simulator framework
+- `ci.yml` — runs on push/PR to main; builds debug APK + tests (Android), runs emulator instrumented tests (`androidApp/src/androidTest`) on an average phone (Pixel 5, API 34) and a resource-constrained phone (Nexus One, API 27, 1 core / 1GB), and builds the iOS simulator framework
 - `android-release.yml` — manual dispatch; builds signed AAB, uploads to Play Store via `r0adkll/upload-google-play@v1`; `track` input selects internal (default) or beta (open testing); `changes_not_sent_for_review` input only needed if Play rejects auto-review (first app review completed 2026-06, so normally false)
 - `ios-release.yml` — manual dispatch; builds IPA, optionally uploads to App Store Connect
 
