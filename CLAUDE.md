@@ -36,6 +36,7 @@ DI: Koin. Database: SQLDelight. Logging: Kermit. Speech: Sherpa-ONNX (`com.bihe0
 - package: `app.s4h.nisafone.android`
 - current: `versionCode = 5`, `versionName = "1.1.3"` in `androidApp/build.gradle.kts`
 - always bump `versionCode` and `versionName` together for every release
+- update `distribution/whatsnew/whatsnew-en-US` (Play release notes, max 500 chars) with every version bump
 
 # Build
 

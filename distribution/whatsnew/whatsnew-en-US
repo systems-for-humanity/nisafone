@@ -1,0 +1,6 @@
+Stability release:
+• Fixed a crash when starting transcription
+• Fixed recording stopping when switching tabs
+• Screen now stays on while recording
+• Scheduled recordings notify you to open the app so the microphone can record
+• Empty recordings are no longer kept in history
